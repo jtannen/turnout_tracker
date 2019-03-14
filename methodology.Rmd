@@ -1,0 +1,96 @@
+---
+title: "Turnout Tracker Methodology"
+author: "Jonathan Tannen"
+date: "December 6, 2018"
+output: html_document
+---
+
+
+# The Math
+
+## The model
+Suppose in year $y$, precinct $p$ has turnout $v$ at time $t$. 
+
+I model the log turnout as 
+
+$$log(v_{pyt}) =  \lambda_y + \gamma_{py} + f(t)$$
+
+where $\gamma_{py}$ is a precinct random effect, representing the precinct's deviation from the city-wide trend in this election. The parameter $\lambda_y$ is the annual fixed effect citywide, capturing overall turnout, and $exp\{f(t)\}$ is a cumulative vote distribution function that goes from 0 at $t=0$ to 1 at $t = t_{max}$, representing the time pattern of votes through the day. (This introduces an issue at $t=0$ when $f(0) = -\infty$, but we can get around that by starting the algorithm only at the first data submission, or adding 1 vote to every precinct). This model embeds an important assumption that all precincts have the same time-pattern $f$.
+
+The precinct random effects are in general correlated, so that 
+
+$$\gamma_{y} \sim Normal(\mu, \Sigma),$$
+
+where $\gamma_y$ is a $p$-length vector of random effects in year $y$, $\mu$ is the p-length vector of the time-invarianct precinct means, and $\Sigma$ a $p \times p$ covariance matrix among precincts.
+
+I use an Empirical Bayes model, so first need to estimate the historical values of $\mu$ and $\Sigma$. I use past election data, using only the end-of-day turnout numbers. The problem is that there are many more precincts than elections (Philadelphia has 1,686 precincts and I use 16 elections), so we can't empirically measure the full covariance matrix (which would require more years than precincts). Instead, I use Singular Value Decomposition to identify the three leading factors, and estimate the covariance matrix among those factors.  
+
+The script `calc_params.R` calculates these parameters on historic data. 
+
+
+### Real-time data
+
+On election day, at time $t$, we need to simultaneously estimate the precincts' $\gamma_{yp}$ for that year, the overall turnout for the year $\lambda_y$, and the time-structure of voting $f(t)$ (since we don't have historic time-of-day turnout, we need to estimate this in the moment).
+
+Voters submit their data with three pieces of information: precint $p_i$, time of day $t_i$, and their voter number at the precinct which I call $x_i$. 
+
+This $x_i$ is a potentially noisy estimate of $v_{p_i t_i}$. Assume 
+
+$$\log(x_i) \sim Normal(\log(v_{p_i t_i}), \sigma^2_e)$$
+
+where $\sigma^2_e$ is the variance of the submitters' error, which we can pre-specify or identify from the data. Notice that this actually means that once we exponentiate, $x$ will be a biased estimate of $v$; this proves unimportant in practice, but is worth revisiting.
+
+We could optimize for $(\gamma, \lambda, f)$. It's easier, though, to combine $f'_y(t) = \lambda_y + f(t)$, and fit that without the constraint that $f(x) \rightarrow 1$.  
+
+I optimize for this iteratively, maximizing the likelihood for each of $(\gamma, f')$, conditional on the others.
+
+### Optimizing for $\gamma$, conditional on $f'$
+
+Let's abuse the notation and write the vector of estimates $\hat{f}'$ as $\hat{f}'_i = \hat{f}'_y(t_i)$ for each observation $i$. 
+
+The log-likelihood for $\gamma$ given $x$ and $\hat{f}'$, is up to a constant equal to
+
+$$L(\gamma | x, \hat{f}'_i) = -\sum_i \frac{(x_i - \gamma_{p_i} - \hat{f}')^2}{2\sigma_e^2} +
+-\frac{1}{2} (\gamma - \mu)' \Sigma^{-1} (\gamma - \mu)$$
+
+This is optimized for $\gamma$ when 
+
+$$0 = \frac{(r - N \gamma)}{\sigma_e^2} - \Sigma^{-1}(\gamma-\mu)$$
+
+where $r$ is a $p$-length vector with $r_p = \sum_{i | p_i = p} (x_i - \hat{f}'_i)$ (the sum of residuals with respect to $f$), and $N$ is a $p \times p$ diagonal matrix with $N_{pp}$ the count of $x$ from precinct $p$.
+
+This solves to 
+
+$$\gamma = (N/\sigma_e^2 + \Sigma^{-1})^{-1} (\frac{r}{\sigma_e^2} + \Sigma^{-1}\mu) $$
+Algorithmically, we can either precompute the inverted first matrix (e.g. using R's `solve(A)`), or we can invert it in each iteration of the optimizer, when we know the target vector (e.g. `solve(A, b)`). In my experience the latter is faster.
+
+### Optimizing $f$, conditional on $\gamma$
+
+Given the random effects $\gamma$, I use a loess smoother to calculate the time-pattern of voting $f'_y(t)$. Define the residual as $r_i = x_i - \gamma_{p_i y}$, and fit the loess smoother of $r_i \sim t_i$.
+
+The primary decision in this is how much smoothing to implement. My main lesson from experience is that you need the loess to be responsive enough to adjust to swings within an hour. My first election using the tracker, there was a dire thunderstorm in the last hour, which killed voting. My estimate naively continued upward, and over-predicted final turnout. So make sure to pick a span that is capable of swings over an hour. We bootstrap uncertainty, so the confidence interval should appropriately represent the variance this choise introduces.
+
+## All together
+
+All together, we find the empirical Bayes estimate of $\gamma$, $\lambda_y$, and $f$, by iteratively maximizing each:
+
+*Until convergence:*
+
+- Optimize $\gamma$ conditional on $\hat{f}'_y$ using the normal likelihood.
+- Optimize $\hat{f}'_y$ conditional on $\gamma$ using the loess smoother.
+
+*After convergence:*
+
+- The overall turnout $T$ at time $t$ is $T(t) = \exp(\hat{f}'_y) \sum_p \exp(\gamma_p)$.
+- The CDF of voting through the day is $\exp(f(t)) = \exp(\hat{f}'_y(t) - \hat{f}'_y(t_{max}))$.
+
+
+## Insights to the model
+
+There are some non-obvious features of the model that are worth pointing out.
+
+- The final estimate is almost entirely dependent on end-of-day submissions. While data throughout the day helps the real time estimate, and makes tracking fun, the final loess estimate uses almost no data from the beginning of the day.
+
+- The estimate is sensitive to outliers, and with voter-submitted data, they are relatively common. I've found it best to be very aggressive in using hard-coded filters to remove outliers. Bad submissions are usually obvious, almost always more than 10x too high or 1/10x too low.
+
+- The final turnout in the model is actually $T_y = \exp(\lambda_y) \sum_p \exp(\gamma_{py})$, where we can exploit the fact that the final loess estimate $\hat{f}_y'(t_{max}) =  \lambda_y$. You may worry that since $\lambda_y$ is unbiased on the log-scale, it leads to an underestimate when exponentiated, but I haven't found this to matter in practice.
