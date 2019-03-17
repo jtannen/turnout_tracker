@@ -6,7 +6,7 @@ config <- list(
   start_hour=7,
   end_hour=20,  #8pm
   precinct_shp_path = "data/2016_Ward_Divisions.shp",
-  precinct_id_col = "WARD_DIVSN",
+  get_precinct_id = function(df) df$WARD_DIVSN,
   get_ward_from_precinct = function(precinct) substr(precinct, 1, 2),
   turnout_df_path="data/phila_turnout.csv",
   submission_bitly="http://bit.ly/sixtysixturnout",

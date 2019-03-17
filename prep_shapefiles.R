@@ -6,7 +6,7 @@ source("util.R")
 
 prep_shapefile <- function(
   shp_path,
-  precinct_id_col,
+  get_precinct_id,
   get_ward_from_precinct,
   save_dir = "data",
   save_precinct = "precincts.Rda",
@@ -14,7 +14,7 @@ prep_shapefile <- function(
 ){
   precincts <- st_read(shp_path)
 
-  precincts$precinct <- precincts[[precinct_id_col]]
+  precincts$precinct <- get_precinct_id(precincts)
   precincts$ward <- get_ward_from_precinct(precincts$precinct)
 
   wards <- precincts %>% 
@@ -42,8 +42,8 @@ remove_holes <- function(shp){
       return(p)
     }
   )
-  
-  return(st_as_sf(sp))
+  ## I don't know why this hack is necessary for Chicago...
+  return(st_as_sf(sp[1:nrow(sp),]))
 }
   
 

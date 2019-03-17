@@ -17,7 +17,7 @@ table, td, th {
 
 </style>
 
-![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/sixtysixwards_blue_on_red_icon.png){width=2px;height=2px}
+![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/icon.png){width=2px;height=2px}
 ![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/logo.png){width=2px;height=2px}
 
 ```{r setup, include=FALSE, out.width='80%'}
@@ -38,7 +38,9 @@ turnout_ci <- tail(bs$bootstrap_ci, 1)
 
 get_ward <- config$get_ward_from_precinct
 
-raw_data <- load_data(TRUE, config, params)$raw_data
+use_real_data <- if("use_real_data" %in% names(config)) config$use_real_data else TRUE
+
+raw_data <- load_data(use_real_data, config, params)$raw_data
 raw_data <- raw_data %>% mutate(ward = config$get_ward(precinct))
 
 current_time <- max(bs$single_result$time_df$time_of_day)
