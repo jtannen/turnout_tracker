@@ -17,8 +17,8 @@ table, td, th {
 
 </style>
 
-![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/icon.png){width=2px;height=2px}
-![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/logo.png){width=2px;height=2px}
+![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/icon.png){width=15%}
+![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/logo.png){width=50%}
 
 ```{r setup, include=FALSE, out.width='80%'}
 library(dplyr)
@@ -30,7 +30,7 @@ source("../generate_plots.R", chdir=TRUE)
 
 config <- extend_config(config)
 
-knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
 
 params <- safe_load("outputs/params.Rda")
 bs <- safe_load("outputs/bootstrap.Rda")
@@ -38,9 +38,7 @@ turnout_ci <- tail(bs$bootstrap_ci, 1)
 
 get_ward <- config$get_ward_from_precinct
 
-use_real_data <- if("use_real_data" %in% names(config)) config$use_real_data else TRUE
-
-raw_data <- load_data(use_real_data, config, params)$raw_data
+raw_data <- safe_load("outputs/raw_data.Rda")
 raw_data <- raw_data %>% mutate(ward = config$get_ward(precinct))
 
 current_time <- max(bs$single_result$time_df$time_of_day)
@@ -75,7 +73,7 @@ wards <- wards %>%
 ## for text reference
 attach(config)
 ```
-# `r site_name` Live `r substr(election_ds, 1, 4)` Election Turnout Tracker
+# Live `r substr(election_ds, 1, 4)` Election Turnout Tracker
 
 Welcome to the [`r site_name`](http://www.sixtysixwards.com) turnout tracker! 
 Voters across `r city` are sharing their turnout to support citizen science. 
@@ -99,10 +97,10 @@ I use historic correlations among `r precinct_name`s' turnout to estimate turnou
 
 Here are the current estimates of turnout in each ward
 ```{r maps, echo=FALSE, out.width='100%'}
-gg_wards_predicted(wards, current_time)
-gg_wards_relative(wards, current_time)
+gg_wards_predicted(wards, current_time, config)
+gg_wards_relative(wards, current_time, config)
 # gg_wards_turnout_change(wards, prior_turnout)
-gg_wards_submissions(wards, raw_data, current_time)
+gg_wards_submissions(wards, raw_data, current_time, config)
 ```
 
 ## Data Tables
@@ -116,7 +114,7 @@ gg_wards_labelled(wards)
 stargazer(
   ward_turnout %>% 
     left_join(ward_ci) %>%
-    mutate(time_of_day=current_time) %>%
+    mutate(time_of_day=strip_leading_zero(format(current_time, "%I:%M"))) %>%
     select(ward, time_of_day, turnout, turnout_high, turnout_low) %>%
     mutate_at(
       vars(turnout, turnout_high, turnout_low),
@@ -134,7 +132,11 @@ stargazer(
 ```{r raw_data, results='asis'}
 stargazer(
   raw_data %>% 
-    mutate(time = format(config$base_time + minutes(minute), "%I:%M")) %>%
+    mutate(
+      time = strip_leading_zero(
+        format(config$base_time + minutes(minute), "%I:%M")
+      )
+    ) %>%
     select(time, precinct, obs) %>%
     rename(`Time of Vote` = time, `Precinct`=precinct, `Voter Number` = obs), 
   type = "html",

@@ -7,6 +7,8 @@ create_backup_dir <- function(dir){
   if(!dir.exists(paste0(dir,"/backup"))) dir.create(paste0(dir,"/backup"))
 }
 
+strip_leading_zero <- function(x) gsub("^\\s+","",x)
+
 save_with_backup <- function(..., stem, dir){
   create_backup_dir(dir)
   

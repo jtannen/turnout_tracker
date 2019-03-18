@@ -48,19 +48,21 @@ extend_config <- function(config){
 }
 
 validate_config <- function(config){
-  config_fields <-c(
-    'city',
-    'timezone',
-    'election_ds',
-    'start_hour',
-    'end_hour',
-    'precinct_shp_path',
-    'precinct_id_col',
-    'turnout_df_path'
-  )
-  if(!all(config_fields %in% names(config))) {
-    stop("config missing %s", config_fields[which(!config_fields %in% names(config))])
-  }
+  # config_fields <-c(
+  #   'city',
+  #   'timezone',
+  #   'election_ds',
+  #   'start_hour',
+  #   'end_hour',
+  #   'precinct_shp_path',
+  #   'precinct_id_col',
+  #   'turnout_df_path'
+  # )
+  # if(!all(config_fields %in% names(config))) {
+  #   stop("config missing %s", config_fields[which(!config_fields %in% names(config))])
+  # }
+    
+  return(TRUE)
 }
 
 

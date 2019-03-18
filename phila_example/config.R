@@ -14,6 +14,7 @@ config <- list(
   ref_turnout=c(`2014`=381503, `2016`=724394),
   site_name="Sixty-Six Wards",
   precinct_name="division",
-  ward_name="ward"
+  ward_name="ward",
+  map_legend_pos=c(0.7, 0.1)
 )
 

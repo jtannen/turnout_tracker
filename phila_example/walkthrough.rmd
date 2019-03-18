@@ -33,11 +33,21 @@ source("config.R")
 print(config)
 ```
 
-All of the prep work is done in `calc_params`. The input is a dataframe, `turnout_df`, which has columns `precinct, year, turnout`. Precinct is the unique identifier for the precinct, year is the year, and turnout is the voter count. Internally, we'll validate that there is a turnout value for every `precinct` in every `year`, so you will need to crosswalk turnout if boundaries have changed.
+The helper function `prep_shapefile` will load the shapefiles, process them, and then save `sf` objects `precincts.Rda` and ``wards.Rda` in `data`.
+
+```{r prep_shapefiles}
+source("../prep_shapefiles.R", chdir = TRUE)
+prep_shapefile(
+  config$precinct_shp_path,
+  config$get_precinct_id,
+  config$get_ward_from_precinct
+)
+```
+
+Before election day, we need to calculate the historic fixed effects and correlations. All of the prep work is done in `calc_params`. The input is a dataframe, `turnout_df`, which has columns `precinct, year, turnout`. Precinct is the unique identifier for the precinct, year is the year, and turnout is the voter count. You will need to crosswalk turnout to the present-day precincts if boundaries have changed.
 
 ```{r turnout_df}
-df <- read.csv(config$turnout_df_path)
-df$precinct <- sprintf("%04d", df$precinct)
+df <- read_csv(config$turnout_df_path, col_types = "cci")
 head(arrange(df, precinct, year))
 ```
 
@@ -67,13 +77,12 @@ print(head(params@svd$v))
 print(params@precinct_cov[1:6, 1:6])
 ```
 
-I also provide some helper functions to make diagnostic plots. These require an `sf` object with the precinct shapefiles. The `sf` must have a column `precinct` which matches the id column in `turnout_df`.
+I also provide some helper functions to make diagnostic plots. These require an `sf` object with the precinct shapefiles. (The outputs of `prep_shapefile` suffice)
 
 The diagnostics include plots of (a) the fixed effects by precinct and by year, and (b) the svd components for the estimated covariances, along with each dimension's score in each year. You should sanity check that the combination of precincts and elections make sense.
 ```{r diagnostics}
 library(sf)
-divs <- st_read(config$precinct_shp_path, quiet = TRUE, )
-divs$precinct <- divs[[config$precinct_id_col]]
+divs <- safe_load("data/precincts.Rda")
 head(divs)
 
 diagnostics(params, divs)
@@ -163,5 +172,6 @@ for(plotname in c("gg_turnout", "gg_bs_hist")){
 ```
 
 ## On Election Day
-There are a few specifics that need to be handled on election day. The file `run_all.R` does three things: (a) download the google data, (b) run `election_tracker.Rmd`, which recreates the code above, and then (c) push the html to github using `upload_git.bat`.
+There are a few specifics that need to be handled on election day. The file `run_all.R` does four things: (a) download the google data, (b) calculate the bootstrapped estimate, (c) run `election_tracker.Rmd`, which creates the markdown report, and then (c) push the html to github using `upload_git.bat`.
 
+On election day, you just run `run_all.R` and leave your computer on.

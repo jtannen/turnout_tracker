@@ -48,7 +48,7 @@ calc_params <- function(
   
   print("Fitting fixed effects")
   precincts <- sort(unique(turnout_df$precinct))
-  years <- asnum(sort(unique(turnout_df$year)))
+  dates <- sort(unique(turnout_df$year))
 
   turnout_df <- arrange(turnout_df, precinct, year)
 
@@ -147,20 +147,17 @@ plot_year_fe <- function(params){
   
   ggplot(
     params@year_fe,
-    aes(x=asnum(year), y=year_fe)
+    aes(x=year, y=year_fe)
   ) +
     geom_line(
-      aes(group=asnum(year) %% 4),
+      aes(group=asnum(substr(year, 1, 4)) %% 4),
       color= strong_green
     ) +
     geom_point(
       color = strong_green,
       size = 2
     ) +
-    scale_x_continuous(
-      "",
-      breaks = min(params@year_fe$year):max(params@year_fe$year)
-    ) +
+    xlab("") +
     scale_fill_gradient2("Turnout Fixed Effect")+
     theme_sixtysix() +
     ggtitle("Year Fixed Effects", "Grouped by 4 year cycle")
@@ -193,7 +190,7 @@ plot_year_svd_dim <- function(params, k){
   
   v_df <- data.frame(
     score=as.vector(params@svd$v[,k]) * params@svd$d[k], 
-    year=sort(unique(asnum(params@turnout_df$year)))
+    year=sort(unique(params@turnout_df$year))
   )
   
   ggplot(
@@ -209,10 +206,7 @@ plot_year_svd_dim <- function(params, k){
       color = strong_green,
       size = 4
     ) +
-    scale_x_continuous(
-      "", 
-      minor_breaks = min(v_df$year):max(v_df$year)
-    ) +
+    xlab("") +
     theme_sixtysix() +
     theme(
       panel.grid.minor.x = element_line(

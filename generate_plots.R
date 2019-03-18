@@ -23,7 +23,7 @@ div_to_ward <- function(divid){
 }
 
 
-gg_wards_relative <- function(wards, current_time){
+gg_wards_relative <- function(wards, current_time, config){
   ggplot(wards) +
     geom_sf(aes(fill = re_over_fe), color = NA)+
     scale_fill_viridis_c(
@@ -36,10 +36,11 @@ gg_wards_relative <- function(wards, current_time){
         get_subtitle(current_time)
       )
     ) +
-    theme_map_sixtysix()
+    theme_map_sixtysix() +
+    theme(legend.position = config$map_legend_pos)
 }
 
-gg_wards_predicted <- function(wards, current_time) {
+gg_wards_predicted <- function(wards, current_time, config) {
   ggplot(wards) +
     geom_sf(
       aes(fill = turnout),
@@ -53,10 +54,11 @@ gg_wards_predicted <- function(wards, current_time) {
       "Estimated Votes", 
       get_subtitle(current_time)
     ) +
-    theme_map_sixtysix()
+    theme_map_sixtysix() +
+    theme(legend.position = config$map_legend_pos)
 }
 
-gg_wards_turnout_change <- function(wards, past_turnout, current_time){
+gg_wards_turnout_change <- function(wards, past_turnout, current_time, config){
 
   ggplot(wards) +
     geom_sf(
@@ -72,7 +74,8 @@ gg_wards_turnout_change <- function(wards, past_turnout, current_time){
             paste("Current estimated turnout vs. 2014 final turnout.",
                   get_subtitle(current_time))
     )+
-    theme_map_sixtysix()
+    theme_map_sixtysix() +
+    theme(legend.position = config$map_legend_pos)
 }
 
 gg_wards_labelled <- function(wards) {
@@ -89,7 +92,7 @@ gg_wards_labelled <- function(wards) {
     theme_map_sixtysix() 
 }
 
-gg_wards_submissions <- function(wards, raw_data, current_time) {
+gg_wards_submissions <- function(wards, raw_data, current_time, config) {
   ggplot(
     wards %>%
       left_join(
@@ -111,7 +114,8 @@ gg_wards_submissions <- function(wards, raw_data, current_time) {
             paste("Number of people who have submitted their voter number.", 
                   get_subtitle(current_time))
     ) +
-    theme_map_sixtysix()
+    theme_map_sixtysix() +
+    theme(legend.position = config$map_legend_pos)
 }
 
 # ggsave(wards_predicted, file = paste0("wards_predicted",Sys.time(),".png"))
