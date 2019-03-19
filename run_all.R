@@ -77,7 +77,7 @@ while(TRUE){
   
   file.copy(
     paste0("outputs/", filename),
-    paste0("C:/Users/Jonathan Tannen/Dropbox/github_page/jtannen.github.io", filename),
+    paste0("C:/Users/Jonathan Tannen/Dropbox/github_page/jtannen.github.io/", filename),
     overwrite=TRUE
   )
   
