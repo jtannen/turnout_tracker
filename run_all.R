@@ -6,7 +6,6 @@ source("../util.R")
 source("../download_google_sheet.R", chdir = TRUE)
 source("../fit_submissions.R", chdir = TRUE)
 source("../bootstrap.R", chdir = TRUE)
-source("../download_google_sheet.R", chdir=TRUE)
 source("../generate_plots.R", chdir=TRUE)
 
 library(rmarkdown)
@@ -43,19 +42,30 @@ library(rmarkdown)
 
 params <- safe_load("outputs/params.Rda")
 
+if(
+  !exists("use_real_data") |
+  !exists("is_test")
+) stop("must specify values first!")
+
+
 run_iter <- 0
 while(TRUE){
   run_iter <- run_iter + 1
   print(paste("Run", run_iter))
   print(Sys.time())
   
-  # raw_data <- download_google_sheet(config)
-  use_real_data <- FALSE
+  print("download_google_sheet")
+  if(use_real_data) raw_data <- download_google_sheet(config)
+  
+  print("load_data")
   data_load <- load_data(use_real_data, config, params)
   raw_data <- data_load$raw_data
-  save_with_backup(raw_data, stem="raw_data", dir="outputs")
+  
+  print("save_with_backup")
+  save(raw_data, file=paste0("outputs/raw_data.Rda"))
   if(!use_real_data) print(data_load$fake_data$true_turnout)
-    
+
+  print("fit_bootstrap")
   bs <- fit_bootstrap(
     raw_data,
     params,
@@ -66,8 +76,13 @@ while(TRUE){
   )
   save_with_backup(bs, stem="bootstrap", dir="outputs")
   
-  filename <- sprintf("turnout_tracker_%s.html", config$city_filename)
+  if(is_test){
+    filename <- sprintf("turnout_tracker_%s_test.html", config$city_filename)
+  } else{
+    filename <- sprintf("turnout_tracker_%s.html", config$city_filename)
+  }
   
+  print("rmarkdown")
   rmarkdown::render( 
     "../election_tracker.Rmd", 
     knit_root_dir = getwd(),
@@ -75,11 +90,12 @@ while(TRUE){
     output_file = filename
   )
   
+  print("copy and git")
   file.copy(
     paste0("outputs/", filename),
     paste0("C:/Users/Jonathan Tannen/Dropbox/github_page/jtannen.github.io/", filename),
     overwrite=TRUE
   )
   
-  system("upload_git.bat")
+  system("../upload_git.bat")
 }

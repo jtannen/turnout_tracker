@@ -32,7 +32,7 @@ gg_wards_relative <- function(wards, current_time, config){
     ggtitle(
       "Where turnout is disproportionately high", 
       paste(
-        "Turnout adjusted for (1) typical Ward turnout and\n (2) citywide 2018 turnout.",
+        "Turnout adjusted for (1) typical Ward turnout and\n (2) current citywide turnout.",
         get_subtitle(current_time)
       )
     ) +
@@ -111,7 +111,7 @@ gg_wards_submissions <- function(wards, raw_data, current_time, config) {
       option = "plasma"
     ) +
     ggtitle("Data Submissions", 
-            paste("Number of people who have submitted their voter number.", 
+            paste("Number of people who have submitted their voter number.\n", 
                   get_subtitle(current_time))
     ) +
     theme_map_sixtysix() +

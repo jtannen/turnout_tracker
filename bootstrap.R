@@ -171,10 +171,14 @@ turnout_plot <- function(
   single_fit <- bs$single_result
   
   resid <- raw_data %>%
+    mutate(time_of_day = config$base_time + minutes(minute)) %>%
+    left_join(
+      single_fit$time_df %>% 
+        select(time_of_day, log_fit) %>%
+        rename(time_fit = log_fit) %>%
+        mutate(total_turnout = bs$bootstrap_ci$turnout_500)
+    ) %>%
     mutate(
-      total_turnout = bs$bootstrap_ci$turnout_500[minute],
-      time_of_day = single_fit$time_df$time_of_day[minute],
-      time_fit = single_fit$time_df$log_fit[minute],
       re_fit = single_fit$precinct_df$re_fit[precinct_num],
       resid = log_obs - time_fit - re_fit
     )
@@ -195,7 +199,7 @@ turnout_plot <- function(
     ) +
     geom_line(size = 2, color = strong_purple) +
     scale_x_datetime("", date_labels = "%I", date_breaks = '1 hour') +
-    scale_y_continuous("", labels = scales::comma) +
+    scale_y_continuous("", labels = scales::comma, limits = c(0, 600e3)) +
     geom_hline(
       yintercept = ref_turnout
     ) + 

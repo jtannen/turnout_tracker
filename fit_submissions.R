@@ -33,9 +33,8 @@ load_google_data <- function(
   # filter obviously unreasonable submissions
   raw_data <- raw_data %>% filter(obs > 0 & obs <= 900) 
   raw_data <- raw_data %>% filter(
-    time <= Sys.time() &
-      time >= config$base_time &
-      time <= config$base_time + hours(config$end_hour - config$start_hour)  
+      (time >= config$base_time) &
+      (time <= (config$base_time + hours(config$end_hour - config$start_hour)))  
   )
 
   return(raw_data)
@@ -237,11 +236,11 @@ calc_resid <- function(
 
 
 get_loess_params <- function(n_obs){
-  if(n_obs < 10){
+  if(n_obs < 50){
     loess_degree <- 1
     loess_span <- 1
   }
-  if(n_obs >= 10 & n_obs < 100){
+  if(n_obs >= 50 & n_obs < 100){
     loess_degree <- 1
     loess_span <- 0.3
   }
