@@ -52,6 +52,17 @@ ward_turnout <- bs$single_result$full_predictions %>%
     re_over_fe = sum(exp(re_fit)) / sum(exp(precinct_fe))
   )
 
+precinct_turnout <- bs$single_result$full_predictions %>%
+  filter(time_of_day == current_time) %>%
+  group_by(precinct) %>%
+  summarise(
+    turnout = sum(prediction),
+    sum_fe = sum(exp(precinct_fe)),
+    re_over_fe = sum(exp(re_fit)) / sum(exp(precinct_fe))
+  )
+
+write.csv(precinct_turnout, file="outputs/precinct_turnout.csv", row.names=FALSE)
+
 ward_ci <- bs$bootstrap_topline %>%
   select(log_fit, sim) %>%
   left_join(bs$ranef_df) %>%

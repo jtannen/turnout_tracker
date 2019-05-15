@@ -55,7 +55,7 @@ generate_fake_data <- function(
   validate_config(election_config)
   config <- extend_config(election_config)
   
-  year_fe_samp <- sample(params@year_fe$year_fe, 1)
+  election_fe_samp <- sample(params@election_fe$election_fe, 1)
   precinct_re_samp <- mvrnorm(
     1, 
     params@precinct_fe$precinct_fe, 
@@ -78,7 +78,7 @@ generate_fake_data <- function(
   fake_data$obs <- with(
     fake_data,
     exp(
-      year_fe_samp + 
+      election_fe_samp + 
         precinct_re_samp[precinct_num] +
         noise +
         true_log_pattern[minute]
@@ -93,12 +93,12 @@ generate_fake_data <- function(
     ) %>%
     dplyr::select(row_number, precinct, time, obs)
   
-  true_turnout <- sum(exp(year_fe_samp + precinct_re_samp))
+  true_turnout <- sum(exp(election_fe_samp + precinct_re_samp))
   
   return(
     list(
       raw_data=raw_data, 
-      year_fe_samp=year_fe_samp, 
+      election_fe_samp=election_fe_samp, 
       precinct_re_samp=precinct_re_samp,
       true_pattern=true_pattern,
       true_turnout=true_turnout

@@ -4,7 +4,7 @@ setClass(
   "modelParams",
   slots = c(
     'turnout_df',
-    'year_fe',
+    'election_fe',
     'precinct_fe',
     'svd',
     'precinct_cov',
@@ -13,24 +13,24 @@ setClass(
 )
 
 validate_turnout_df <- function(df){
-  required_columns <- c("precinct", "year", "turnout")
+  required_columns <- c("precinct", "election", "turnout")
   if(!all(required_columns %in% names(df))) stop(
     "turnout_df must have columns %s.", 
     paste(required_columns, collapse = ", ")
   )
   
   precincts <- unique(df$precinct)
-  years <- unique(df$year)
+  elections <- unique(df$election)
   
-  all_rows <- expand.grid(precinct=precincts, year=years)
+  all_rows <- expand.grid(precinct=precincts, election=elections)
   missing_rows <- anti_join(all_rows, df)
   if(nrow(missing_rows) > 0) stop(sprintf("df is missing rows %s", missing_rows))
   
-  dup_rows <- df %>% select(precinct, year) %>% filter(duplicated(.))
+  dup_rows <- df %>% select(precinct, election) %>% filter(duplicated(.))
   if(nrow(dup_rows) > 0) stop(sprintf("df has duplicated rows for %s", dup_rows))
   
   return(TRUE)
-  ## validate that df has observations for each year x precinct
+  ## validate that df has observations for each election x precinct
 }
 
 validate_precinct_sf <- function(sf, params){

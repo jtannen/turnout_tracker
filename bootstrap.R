@@ -199,7 +199,7 @@ turnout_plot <- function(
     ) +
     geom_line(size = 2, color = strong_purple) +
     scale_x_datetime("", date_labels = "%I", date_breaks = '1 hour') +
-    scale_y_continuous("", labels = scales::comma, limits = c(0, 600e3)) +
+    scale_y_continuous("", labels = scales::comma) +
     geom_hline(
       yintercept = ref_turnout
     ) + 
@@ -213,7 +213,7 @@ turnout_plot <- function(
       vjust = 1.2,
       hjust = 0
     ) +
-    expand_limits(x = config$election_day + hours(config$end_hour)) + 
+    expand_limits(x = config$election_day + hours(config$end_hour), y=0) + 
     ggtitle("Estimated Election Turnout") +
     theme_sixtysix()
 }

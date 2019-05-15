@@ -9,6 +9,7 @@ source("../bootstrap.R", chdir = TRUE)
 source("../generate_plots.R", chdir=TRUE)
 
 library(rmarkdown)
+library(tidyverse)
 
 # #######################
 # ## BEFORE ELECTION DAY
@@ -23,7 +24,7 @@ library(rmarkdown)
 # ## Precompute the historic parameters
 # source("../calc_params.R", chdir=TRUE)
 # 
-# df <- read_csv(config$turnout_df_path)
+# df <- read_csv(config$turnout_df_path, col_types = "ccd")
 # 
 # precincts <- safe_load("data/precincts.Rda")
 # wards <- safe_load("data/wards.Rda")
@@ -32,7 +33,7 @@ library(rmarkdown)
 #   turnout_df=df,
 #   n_svd=3
 # )
-# diagnostics(params, precincts)
+# diagnostics(params, precincts, config)
 # 
 # save_with_backup(params, stem="params", dir="outputs")
 
@@ -63,6 +64,7 @@ while(TRUE){
   
   print("save_with_backup")
   save(raw_data, file=paste0("outputs/raw_data.Rda"))
+  write.csv(raw_data, file="outputs/raw_data.csv")
   if(!use_real_data) print(data_load$fake_data$true_turnout)
 
   print("fit_bootstrap")
@@ -78,7 +80,7 @@ while(TRUE){
   
   if(is_test){
     filename <- sprintf("turnout_tracker_%s_test.html", config$city_filename)
-  } else{
+  } else {
     filename <- sprintf("turnout_tracker_%s.html", config$city_filename)
   }
   
@@ -91,11 +93,13 @@ while(TRUE){
   )
   
   print("copy and git")
-  file.copy(
-    paste0("outputs/", filename),
-    paste0("C:/Users/Jonathan Tannen/Dropbox/github_page/jtannen.github.io/", filename),
-    overwrite=TRUE
-  )
+  for(f in c(filename, "precinct_turnout.csv", "raw_data.csv")){
+    file.copy(
+      paste0("outputs/", f),
+      paste0("C:/Users/Jonathan Tannen/Dropbox/github_page/jtannen.github.io/", f),
+      overwrite=TRUE
+    )
+  }
   
   system("../upload_git.bat")
 }

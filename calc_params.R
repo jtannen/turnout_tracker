@@ -19,25 +19,25 @@ calc_params <- function(
 ){
   
   ########################################
-  ## Given turnout (counts of total voters) for each precinct p in each year y,
+  ## Given turnout (counts of total voters) for each precinct p in each election y,
   ## this calculates the historic fixed effects and correlations among precincts,
   ## on the log-scale.
   ##
   ## log(turnout[p, y] + 1) = 
-  ##     year_fe[y] + precinct_fe[p] + e[p, y]                    
+  ##     election_fe[y] + precinct_fe[p] + e[p, y]                    
   ## 
   ## where cov(e[p, y], e[p', y]) is estimated using svd().
   ##
   ##
   ## INPUT:
   ##
-  ## turnout_df: the input df, with columns precinct, year, turnout
+  ## turnout_df: the input df, with columns precinct, election, turnout
   ##   
   ## OUTPUT: An object of class modelParams with the following:
   ##
   ## turnout_df: the input df with some new additional info
   ## precinct_fe: A data.frame with precinct fixed effects
-  ## year_fe: a data.frame with year fixed effects.
+  ## election_fe: a data.frame with election fixed effects.
   ## svd: the output of svd on the residuals
   ## precinct_cov: the precincts' estimated covariance matrix of log(turnout + 1)  
   ## precinct_cov_inv: the inverse of precinct_cov (it's useful to precompute)  
@@ -48,9 +48,9 @@ calc_params <- function(
   
   print("Fitting fixed effects")
   precincts <- sort(unique(turnout_df$precinct))
-  dates <- sort(unique(turnout_df$year))
+  dates <- sort(unique(turnout_df$election))
 
-  turnout_df <- arrange(turnout_df, precinct, year)
+  turnout_df <- arrange(turnout_df, precinct, election)
 
   turnout_df <- turnout_df %>% 
     mutate(
@@ -59,25 +59,25 @@ calc_params <- function(
     ) %>%
     mutate(precinct_num = as.numeric(precinct))
 
-  year_fe <- turnout_df %>% 
-    group_by(year) %>%
-    summarise(year_fe = mean(log_turnout))
+  election_fe <- turnout_df %>% 
+    group_by(election) %>%
+    summarise(election_fe = mean(log_turnout))
   
   precinct_fe <- turnout_df %>%
-    left_join(year_fe) %>%
+    left_join(election_fe) %>%
     mutate(
-      residual = log_turnout - year_fe
+      residual = log_turnout - election_fe
     ) %>%
     group_by(precinct) %>%
     summarise(precinct_fe = mean(residual))
   
   resid_mat <- turnout_df %>%
     group_by() %>%
-    left_join(year_fe) %>%
+    left_join(election_fe) %>%
     left_join(precinct_fe) %>%
-    mutate(residual = log_turnout - year_fe - precinct_fe) %>%
-    select(precinct, year, residual) %>%
-    spread(key = year, value = residual) 
+    mutate(residual = log_turnout - election_fe - precinct_fe) %>%
+    select(precinct, election, residual) %>%
+    spread(key = election, value = residual) 
   
   mat <- resid_mat %>%
     select(-precinct) %>%
@@ -113,7 +113,7 @@ calc_params <- function(
     new(
       "modelParams",
       turnout_df=turnout_df,
-      year_fe=year_fe,
+      election_fe=election_fe,
       precinct_fe=precinct_fe,
       svd=svd,
       precinct_cov=precinct_cov,
@@ -142,25 +142,32 @@ map_precinct_fe <- function(params, precinct_sf){
     ggtitle("Precinct Fixed Effects [log(Votes per Mile)]")
 } 
 
-plot_year_fe <- function(params){
+plot_election_fe <- function(params, config){
   if(!is(params, "modelParams")) stop("params must be of class modelParams")
   
+  election_df <- params@election_fe %>%
+    mutate(
+      year = config$get_year_from_election(election),
+      etype = config$get_etype_from_election(election)
+    )
+  
   ggplot(
-    params@year_fe,
-    aes(x=year, y=year_fe)
+    election_df,
+    aes(x=year, y=election_fe)
   ) +
     geom_line(
-      aes(group=asnum(substr(year, 1, 4)) %% 4),
+      aes(group=asnum(substr(election, 1, 4)) %% 4),
       color= strong_green
     ) +
     geom_point(
       color = strong_green,
       size = 2
     ) +
+    facet_grid(etype ~ .) +
     xlab("") +
     scale_fill_gradient2("Turnout Fixed Effect")+
     theme_sixtysix() +
-    ggtitle("Year Fixed Effects", "Grouped by 4 year cycle")
+    ggtitle("election Fixed Effects", "Grouped by 4 election cycle")
 } 
 
 map_svd_dim <- function(params, k, precinct_sf){
@@ -185,13 +192,17 @@ map_svd_dim <- function(params, k, precinct_sf){
     ggtitle(paste("Turnout Dimension", k))
 } 
 
-plot_year_svd_dim <- function(params, k){
+plot_election_svd_dim <- function(params, k, config){
   if(!is(params, "modelParams")) stop("params must be of class modelParams")
   
   v_df <- data.frame(
     score=as.vector(params@svd$v[,k]) * params@svd$d[k], 
-    year=sort(unique(params@turnout_df$year))
-  )
+    election=sort(unique(params@turnout_df$election))
+  ) %>%
+    mutate(
+      year = config$get_year_from_election(election),
+      etype = config$get_etype_from_election(election)
+    )
   
   ggplot(
     v_df,
@@ -207,6 +218,7 @@ plot_year_svd_dim <- function(params, k){
       size = 4
     ) +
     xlab("") +
+    facet_grid(etype ~ .)+
     theme_sixtysix() +
     theme(
       panel.grid.minor.x = element_line(
@@ -219,7 +231,7 @@ plot_year_svd_dim <- function(params, k){
 } 
 
 
-diagnostics <- function(params, precinct_sf){
+diagnostics <- function(params, precinct_sf, config){
   if(!is(params, "modelParams")) stop("params must be of class modelParams")
   validate_precinct_sf(precinct_sf, params)
   
@@ -230,14 +242,14 @@ diagnostics <- function(params, precinct_sf){
   map_precinct_fe(params, precinct_sf) %>% print
   pause()
   
-  plot_year_fe(params) %>% print
+  plot_election_fe(params, config) %>% print
   pause()
   
   for(k in 1:ncol(params@svd$u)){
     map_svd_dim(params, k, precinct_sf) %>% print()
     pause()
     
-    plot_year_svd_dim(params, k) %>% print()
+    plot_election_svd_dim(params, k, config) %>% print()
     pause()
   }
 }
