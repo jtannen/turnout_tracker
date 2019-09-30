@@ -8,7 +8,7 @@ source("theme_sixtysix.R", chdir=TRUE)
 source("bootstrap.R", chdir=TRUE) # turnout_plot defined here
 source("util.R")
 
-
+strip_leading_zero <- function(x) gsub("^(0|\\s)+", "", x)
 get_subtitle <- function(current_time){
   paste(
     "Results as of", 
@@ -36,7 +36,7 @@ gg_wards_relative <- function(wards, current_time, config){
         get_subtitle(current_time)
       )
     ) +
-    theme_map_sixtysix() +
+    theme_map_sixtysix() %+replace%
     theme(legend.position = config$map_legend_pos)
 }
 
@@ -54,7 +54,7 @@ gg_wards_predicted <- function(wards, current_time, config) {
       "Estimated Votes", 
       get_subtitle(current_time)
     ) +
-    theme_map_sixtysix() +
+    theme_map_sixtysix() %+replace%
     theme(legend.position = config$map_legend_pos)
 }
 
@@ -74,7 +74,7 @@ gg_wards_turnout_change <- function(wards, past_turnout, current_time, config){
             paste("Current estimated turnout vs. 2014 final turnout.",
                   get_subtitle(current_time))
     )+
-    theme_map_sixtysix() +
+    theme_map_sixtysix() %+replace%
     theme(legend.position = config$map_legend_pos)
 }
 
@@ -114,7 +114,7 @@ gg_wards_submissions <- function(wards, raw_data, current_time, config) {
             paste("Number of people who have submitted their voter number.\n", 
                   get_subtitle(current_time))
     ) +
-    theme_map_sixtysix() +
+    theme_map_sixtysix() %+replace%
     theme(legend.position = config$map_legend_pos)
 }
 

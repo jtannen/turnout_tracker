@@ -17,8 +17,8 @@ table, td, th {
 
 </style>
 
-![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/icon.png){width=15%}
-![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/logo.png){width=50%}
+[![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/icon.png){width=15%}
+![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/logo.png){width=50%}](https://sixtysixwards.com)
 
 ```{r setup, include=FALSE, out.width='80%'}
 library(dplyr)
@@ -61,7 +61,11 @@ precinct_turnout <- bs$single_result$full_predictions %>%
     re_over_fe = sum(exp(re_fit)) / sum(exp(precinct_fe))
   )
 
-write.csv(precinct_turnout, file="outputs/precinct_turnout.csv", row.names=FALSE)
+write.csv(
+  precinct_turnout, 
+  file=sprintf("outputs/precinct_turnout_%s.csv", config$city_filename), 
+  row.names=FALSE
+)
 
 ward_ci <- bs$bootstrap_topline %>%
   select(log_fit, sim) %>%
@@ -100,11 +104,19 @@ Voters across `r city` are sharing their turnout to support citizen science.
 ## Live Results
 
 ```{r turnout, echo=FALSE, out.width='100%'}
-turnout_plot(
+p <- turnout_plot(
   bs,
   raw_data,
   config
 )
+
+turnout_plot_file <- sprintf(
+  "outputs/turnout_plot_%s.png",
+  format(Sys.time(), "%H_%M_%S")
+)
+ggsave(p, file = turnout_plot_file)
+
+p
 ```
 
 As of `r strip_leading_zero(format(current_time, "%I:%M"))`, `r scales::comma(nrow(raw_data))` voters in `r length(unique(raw_data$ward))` wards have [shared their voter number](`r submission_bitly`). I estimate that <b>`r scales::comma(round(turnout_ci$turnout_500))`</b> people have voted across the city (95% Confidence Interval: `r scales::comma(round(turnout_ci$turnout_025))` - `r scales::comma(round(turnout_ci$turnout_975))`). `r mail_in_text`
@@ -115,7 +127,15 @@ I use historic correlations among `r precinct_name`s' turnout to estimate turnou
 Here are the current estimates of turnout in each ward
 ```{r maps, echo=FALSE, out.width='100%'}
 gg_wards_predicted(wards, current_time, config)
-gg_wards_relative(wards, current_time, config)
+
+p <- gg_wards_relative(wards, current_time, config)
+relative_map_file <- sprintf(
+  "outputs/relative_map_%s.png",
+  format(Sys.time(), "%H_%M_%S")
+)
+ggsave(p, file = relative_map_file)
+p
+
 # gg_wards_turnout_change(wards, prior_turnout)
 gg_wards_submissions(wards, raw_data, current_time, config)
 ```
@@ -163,3 +183,4 @@ stargazer(
 )
 ```
 
+**Download the csvs**: - [Raw Submissions](`r sprintf("https://jtannen.github.io/raw_data_%s.csv", config$city_filename)`) - [Division Predictions](`r sprintf("https://jtannen.github.io/precinct_turnout_%s.csv", config$city_filename)`)

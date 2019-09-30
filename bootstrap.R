@@ -36,6 +36,7 @@ fit_bootstrap <- function(
   }  
     
   for(i in 1:n_boot){
+    print(paste0("Boot ", i))
     bs_data <- raw_data %>% sample_frac(replace = TRUE) 
     bs_params <- fit_em_model(
       bs_data, params, verbose=FALSE,use_inverse=use_inverse,election_config=election_config
@@ -192,7 +193,7 @@ turnout_plot <- function(
   ) +
     geom_point(data = resid, aes(y=total_turnout * exp(resid))) +
     geom_ribbon(
-      aes(ymin = turnout_025, ymax = turnout_975),
+      aes(ymin = turnout_025, ymax = pmin(turnout_975, 800e6)),
       alpha = 0.2,
       color = NA,
       fill = strong_purple
@@ -215,7 +216,7 @@ turnout_plot <- function(
     ) +
     expand_limits(x = config$election_day + hours(config$end_hour), y=0) + 
     ggtitle("Estimated Election Turnout") +
-    theme_sixtysix()
+    theme_sixtysix() 
 }
 
 

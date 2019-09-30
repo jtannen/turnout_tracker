@@ -2,11 +2,12 @@
 ## TO THE ELECTION-SPECIFIC FOLDER
 
 source("config.R")
-source("../util.R")
+source("../util_tracker.R", chdir=TRUE)
 source("../download_google_sheet.R", chdir = TRUE)
 source("../fit_submissions.R", chdir = TRUE)
 source("../bootstrap.R", chdir = TRUE)
 source("../generate_plots.R", chdir=TRUE)
+source("../tweets.R", chdir=TRUE)
 
 library(rmarkdown)
 library(tidyverse)
@@ -48,6 +49,9 @@ if(
   !exists("is_test")
 ) stop("must specify values first!")
 
+SHOULD_TWEET <- TRUE
+reply_tweet_id <- NA
+time_of_last_tweet <- NA
 
 run_iter <- 0
 while(TRUE){
@@ -64,7 +68,7 @@ while(TRUE){
   
   print("save_with_backup")
   save(raw_data, file=paste0("outputs/raw_data.Rda"))
-  write.csv(raw_data, file="outputs/raw_data.csv")
+  write.csv(raw_data, file=sprintf("outputs/raw_data_%s.csv", config$city_filename), row.names=FALSE)
   if(!use_real_data) print(data_load$fake_data$true_turnout)
 
   print("fit_bootstrap")
@@ -79,9 +83,9 @@ while(TRUE){
   save_with_backup(bs, stem="bootstrap", dir="outputs")
   
   if(is_test){
-    filename <- sprintf("turnout_tracker_%s_test.html", config$city_filename)
+    filename <- "turnout_tracker_%s_test.html"
   } else {
-    filename <- sprintf("turnout_tracker_%s.html", config$city_filename)
+    filename <- "turnout_tracker_%s.html"
   }
   
   print("rmarkdown")
@@ -89,17 +93,35 @@ while(TRUE){
     "../election_tracker.Rmd", 
     knit_root_dir = getwd(),
     output_dir = "outputs",
-    output_file = filename
+    output_file = sprintf(filename, config$city_filename)
   )
   
   print("copy and git")
-  for(f in c(filename, "precinct_turnout.csv", "raw_data.csv")){
+  for(f0 in c(filename, "precinct_turnout_%s.csv", "raw_data_%s.csv")){
+    f <- sprintf(f0, config$city_filename)
     file.copy(
       paste0("outputs/", f),
       paste0("C:/Users/Jonathan Tannen/Dropbox/github_page/jtannen.github.io/", f),
       overwrite=TRUE
     )
   }
-  
+
   system("../upload_git.bat")
+  
+  if(SHOULD_TWEET){
+    is_time_to_tweet <- is.na(time_of_last_tweet) | (
+      (ymd_hms(current_time) - ymd_hms(time_of_last_tweet)) >= hours(1)
+    )
+
+    if(is_time_to_tweet){
+      reply_tweet_id <- tweet_update(
+        reply_tweet_id, 
+        turnout_ci,  
+        current_time, 
+        config, 
+        c(turnout_plot_file, relative_map_file)
+      )
+      time_of_last_tweet <- current_time
+    }
+  }
 }

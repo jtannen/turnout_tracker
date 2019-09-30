@@ -15,7 +15,7 @@ download_google_sheet <- function(config, filestem="google_download", save_dir="
   
   raw_data <- raw_data %>% 
     filter(
-      time <= mdy_hms(timestamp, tz=config$timezone)
+      time <= mdy_hms(timestamp, tz=config$timezone) + minutes(5)
     )
   
   # raw_data <- raw_data %>% 
@@ -28,8 +28,8 @@ download_google_sheet <- function(config, filestem="google_download", save_dir="
   raw_data <- raw_data %>% 
     mutate(row_number = 1:n()) %>%
     mutate(
-      ward = sprintf("%02d", ward),
-      div = sprintf("%02d", div),
+      ward = sprintf("%02d", asnum(ward)),
+      div = sprintf("%02d", asnum(div)),
       precinct=paste0(ward,div)
     ) %>%
     select(timestamp, row_number, ward, div, precinct, time, obs)

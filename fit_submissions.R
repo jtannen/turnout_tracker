@@ -31,6 +31,7 @@ load_google_data <- function(
   )
   
   # filter obviously unreasonable submissions
+  raw_data$obs[raw_data$obs == 0] <- 1
   raw_data <- raw_data %>% filter(obs > 0 & obs <= 900) 
   raw_data <- raw_data %>% filter(
       (time >= config$base_time) &
@@ -240,13 +241,13 @@ get_loess_params <- function(n_obs){
     loess_degree <- 1
     loess_span <- 1
   }
-  if(n_obs >= 50 & n_obs < 100){
+  if(n_obs >= 50 & n_obs < 500){
     loess_degree <- 1
     loess_span <- 0.3
   }
-  if(n_obs >= 100){
+  if(n_obs >= 500){
     loess_degree <- 2
-    loess_span <- 0.2
+    loess_span <- 0.3
   }
   return(list(loess_degree=loess_degree, loess_span=loess_span))
 }
