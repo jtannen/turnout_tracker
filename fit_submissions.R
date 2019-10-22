@@ -110,6 +110,7 @@ generate_fake_data <- function(
 
 load_data <- function(use_real_data, election_config, params, google_rda="outputs/google_download.Rda"){
   validate_config(election_config)
+  
   if(use_real_data){
     fake_data <- NULL
     raw_data <- load_google_data(election_config, google_rda)

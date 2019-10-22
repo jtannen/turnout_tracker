@@ -12,6 +12,25 @@ setClass(
   )
 )
 
+modelParams <- function(
+  turnout_df,
+  election_fe,
+  precinct_fe,
+  svd,
+  precinct_cov,
+  precinct_cov_inv
+){
+  new(
+    "modelParams",
+    turnout_df=turnout_df,
+    election_fe=election_fe,
+    precinct_fe=precinct_fe,
+    svd=svd,
+    precinct_cov=precinct_cov,
+    precinct_cov_inv=precinct_cov_inv
+  )
+}
+
 validate_turnout_df <- function(df){
   required_columns <- c("precinct", "election", "turnout")
   if(!all(required_columns %in% names(df))) stop(

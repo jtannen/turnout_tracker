@@ -1,5 +1,6 @@
 ## SET THE WORKING DIRECTORY FIRST
 ## TO THE ELECTION-SPECIFIC FOLDER
+## setwd("C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/phila_201911/")
 
 source("config.R")
 source("../util_tracker.R", chdir=TRUE)
@@ -44,14 +45,18 @@ library(tidyverse)
 
 params <- safe_load("outputs/params.Rda")
 
+# USE_REAL_DATA <- TRUE
+# IS_TEST <- FALSE
+
 if(
-  !exists("use_real_data") |
-  !exists("is_test")
+  !exists("USE_REAL_DATA") |
+  !exists("IS_TEST")
 ) stop("must specify values first!")
 
 SHOULD_TWEET <- TRUE
 reply_tweet_id <- NA
 time_of_last_tweet <- NA
+
 
 run_iter <- 0
 while(TRUE){
@@ -60,16 +65,16 @@ while(TRUE){
   print(Sys.time())
   
   print("download_google_sheet")
-  if(use_real_data) raw_data <- download_google_sheet(config)
+  if(USE_REAL_DATA) download_google_sheet(config)
   
   print("load_data")
-  data_load <- load_data(use_real_data, config, params)
+  data_load <- load_data(USE_REAL_DATA, config, params)
   raw_data <- data_load$raw_data
   
   print("save_with_backup")
   save(raw_data, file=paste0("outputs/raw_data.Rda"))
   write.csv(raw_data, file=sprintf("outputs/raw_data_%s.csv", config$city_filename), row.names=FALSE)
-  if(!use_real_data) print(data_load$fake_data$true_turnout)
+  if(!USE_REAL_DATA) print(data_load$fake_data$true_turnout)
 
   print("fit_bootstrap")
   bs <- fit_bootstrap(
@@ -82,7 +87,7 @@ while(TRUE){
   )
   save_with_backup(bs, stem="bootstrap", dir="outputs")
   
-  if(is_test){
+  if(IS_TEST){
     filename <- "turnout_tracker_%s_test.html"
   } else {
     filename <- "turnout_tracker_%s.html"

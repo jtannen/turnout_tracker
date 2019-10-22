@@ -2,7 +2,7 @@ library(dplyr)
 library(tibble)
 library(tidyr)
 
-df_major <- readRDS("C:/Users/Jonathan Tannen/Dropbox/sixty_six/data/processed_data/df_major_2019_09_19.Rds")
+df_major <- readRDS("C:/Users/Jonathan Tannen/Dropbox/sixty_six/data/processed_data/df_major_2019-10-17.Rds")
 head(df_major)
 
 turnout <- df_major %>% 

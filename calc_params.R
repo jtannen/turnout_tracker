@@ -209,8 +209,8 @@ plot_election_svd_dim <- function(params, k, config){
     aes(x = year, y = score)
   ) +
     geom_line(
+      aes(group=year %% 4),
       color = strong_green,
-      group = 1,
       lwd = 1
     ) +
     geom_point(
