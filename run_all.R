@@ -45,33 +45,19 @@ library(tidyverse)
 
 params <- readRDS("outputs/params.Rds")
 
-# USE_REAL_DATA <- FALSE
-# IS_TEST <- TRUE
+# USE_GOOGLE_DATA <- TRUE
 
-# USE_REAL_DATA <- TRUE
+# IS_TEST <- TRUE
 # IS_TEST <- FALSE
 
 if(
-  !exists("USE_REAL_DATA") |
+  !exists("USE_GOOGLE_DATA") |
   !exists("IS_TEST")
 ) stop("must specify values first!")
 
 SHOULD_TWEET <- TRUE
 reply_tweet_id <- NA
 time_of_last_tweet <- NA
-
-print_sim_turnout <- function(data_load, config){
-  config <- extend_config(config)
-  true_turnout_eod <- data_load$fake_data$true_turnout
-  curr_minutes <- time_length(
-    ymd_hms(max(data_load$fake_data$raw_data$time)) - 
-      ymd_hms(config$base_time),
-    "minutes"
-  )
-  frac <- data_load$fake_data$true_pattern(config$n_minutes)[curr_minutes]
-  print("True Turnout")
-  print(data_load$fake_data$true_turnout * frac)
-}
 
 
 run_iter <- 0
@@ -80,21 +66,17 @@ while(TRUE){
   print(paste("Run", run_iter))
   print(Sys.time())
   
-  print("download_google_sheet")
-  if(USE_REAL_DATA) download_google_sheet(config)
-  
-  print("load_data")
-  data_load <- load_data(USE_REAL_DATA, config, params)
-  raw_data <- data_load$raw_data
-  
-  print("save_with_backup")
-  saveRDS(raw_data, file=paste0("outputs/raw_data.Rds"))
-  write.csv(raw_data, file=sprintf("outputs/raw_data_%s.csv", config$city_filename), row.names=FALSE)
-  
-  if(!USE_REAL_DATA){
-    print_sim_turnout(data_load, config)
+  if(USE_GOOGLE_DATA){
+    print("download_google_sheet")
+    download_google_sheet(config, test_data=IS_TEST)
   }
   
+  print("load_data")
+  data_load <- load_data(USE_GOOGLE_DATA, config, params)
+  raw_data <- data_load$raw_data
+  saveRDS(raw_data, file=paste0("outputs/raw_data.Rds"))
+  write.csv(raw_data, file=sprintf("outputs/raw_data_%s.csv", config$city_filename), row.names=FALSE)
+
   print("fit bootstrap")
   bs <- fit_and_bootstrap(
     raw_data=raw_data,

@@ -3,8 +3,17 @@ library(dplyr)
 library(lubridate)
 
 
-download_google_sheet <- function(config, filestem="google_download", save_dir="outputs"){
-  raw_url <- config$google_doc
+download_google_sheet <- function(
+  config,
+  filestem="google_download", 
+  save_dir="outputs",
+  test_data=FALSE
+){
+  if(test_data){
+    raw_url <- config$test_data
+  } else {
+    raw_url <- config$google_doc
+  }
   url <- construct_download_url(raw_url, format = "csv")
   raw_data <- gsheet2tbl(url)
   write.csv(raw_data, file=paste0(save_dir,"/google_download.csv"), row.names = FALSE)

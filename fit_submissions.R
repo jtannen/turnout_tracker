@@ -98,6 +98,12 @@ generate_fake_data <- function(
   ## valid final turnout since the pattern ends at 1
   true_turnout <- sum(exp(election_fe_samp + precinct_re_samp))
   
+  # print turnout  
+  curr_minutes <- max(fake_data$minute)
+  frac <- exp(true_log_pattern[curr_minutes])
+  print("True Turnout")
+  print(true_turnout * frac)
+  
   return(
     list(
       raw_data=raw_data, 
@@ -110,10 +116,15 @@ generate_fake_data <- function(
 }
 
 
-load_data <- function(use_real_data, election_config, params, google_rds="outputs/google_download.Rds"){
+load_data <- function(
+  use_google_data, 
+  election_config, 
+  params, 
+  google_rds="outputs/google_download.Rds"
+){
   validate_config(election_config)
   
-  if(use_real_data){
+  if(use_google_data){
     fake_data <- NULL
     raw_data <- load_google_data(election_config, google_rds)
   } else {

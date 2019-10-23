@@ -13,6 +13,8 @@ config <- list(
   turnout_df_path="data/phila_turnout.csv",
   submission_bitly="http://bit.ly/sixtysixturnout",
   google_doc='docs.google.com/spreadsheets/d/1GCPVCim0T5Kt4Qveotibx8pDyR2ZPVlCjpUFAMPy9F4',
+  ## test data with 199K turnout
+  test_data='docs.google.com/spreadsheets/d/11g0yRMF6VQqfZCHOC2S2jL62FgdiKVMq7KzUkcPhy1w',
   ref_turnout=c(`2015`=238664, `2011`=200834),
   site_name="Sixty-Six Wards",
   site_link="https://sixtysixwards.com/",
