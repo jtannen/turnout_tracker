@@ -34,6 +34,6 @@ download_google_sheet <- function(config, filestem="google_download", save_dir="
     ) %>%
     select(timestamp, row_number, ward, div, precinct, time, obs)
   
-  save(raw_data, file = paste0(save_dir, "/", filestem,".Rda"))
+  saveRDS(raw_data, file = paste0(save_dir, "/", filestem,".Rds"))
   return(raw_data)
 }

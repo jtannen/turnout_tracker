@@ -8,7 +8,30 @@ setClass(
     'precinct_fe',
     'svd',
     'precinct_cov',
-    'precinct_cov_inv'
+    'precinct_cov_inv',
+    'n_precincts'
+  )
+)
+
+setClass(
+  "modelFit",
+  slots = c(
+    "precinct_re_fit", 
+    "loess_fit", 
+    "loess_predicted",
+    "first_mat_stored",
+    "first_mat_is_inv",
+    "resid",
+    "sigma_noise"
+  )
+)
+
+setClass(
+  "modelPredictions",
+  slots=c(
+      'precinct_df',
+      'time_df',
+      'full_predictions'
   )
 )
 
@@ -20,6 +43,7 @@ modelParams <- function(
   precinct_cov,
   precinct_cov_inv
 ){
+  
   new(
     "modelParams",
     turnout_df=turnout_df,
@@ -27,7 +51,42 @@ modelParams <- function(
     precinct_fe=precinct_fe,
     svd=svd,
     precinct_cov=precinct_cov,
-    precinct_cov_inv=precinct_cov_inv
+    precinct_cov_inv=precinct_cov_inv,
+    n_precincts=nrow(precinct_fe)
+  )
+}
+
+modelFit <- function(
+  precinct_re_fit, 
+  loess_fit, 
+  loess_predicted,
+  first_mat_stored,
+  first_mat_is_inv,
+  sigma_noise,
+  resid=NULL
+){
+  new(
+    "modelFit",
+    precinct_re_fit=precinct_re_fit, 
+    loess_fit=loess_fit, 
+    loess_predicted=loess_predicted,
+    first_mat_stored=first_mat_stored,
+    first_mat_is_inv=first_mat_is_inv,
+    sigma_noise=sigma_noise,
+    resid=sigma_noise
+  )
+}
+
+modelPredictions <- function(
+  precinct_df,
+  time_df,
+  full_predictions
+){
+  new(
+    "modelPredictions",
+    precinct_df=precinct_df,
+    time_df=time_df,
+    full_predictions=full_predictions
   )
 }
 

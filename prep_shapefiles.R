@@ -9,8 +9,8 @@ prep_shapefile <- function(
   get_precinct_id,
   get_ward_from_precinct,
   save_dir = "data",
-  save_precinct = "precincts.Rda",
-  save_wards = "wards.Rda"
+  save_precinct = "precincts.Rds",
+  save_wards = "wards.Rds"
 ){
   precincts <- st_read(shp_path)
 
@@ -22,8 +22,8 @@ prep_shapefile <- function(
     summarise(geometry=st_union(geometry))
   wards <- remove_holes(wards)
   
-  save(precincts, file = paste0(save_dir, '/', save_precinct))
-  save(wards, file = paste0(save_dir, '/', save_wards))
+  saveRDS(precincts, file = paste0(save_dir, '/', save_precinct))
+  saveRDS(wards, file = paste0(save_dir, '/', save_wards))
 }
 
 

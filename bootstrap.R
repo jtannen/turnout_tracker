@@ -1,6 +1,6 @@
 source("fit_submissions.R")
 
-fit_bootstrap <- function(
+fit_and_bootstrap <- function(
   raw_data,
   params,
   election_config,
@@ -8,44 +8,51 @@ fit_bootstrap <- function(
   use_inverse=FALSE,
   verbose=TRUE
 ){
-  bootstrap_results <- vector(mode = "list", length = n_boot)
-  ranef_results <- vector(mode = "list", length = n_boot)
+  bs_list <- vector(mode = "list", length = n_boot)
+  
   diagnostic <- FALSE
 
   print("Raw Result")
   single_fit <- fit_em_model(
-    raw_data, params, verbose=FALSE, use_inverse=use_inverse, election_config=election_config
+    raw_data, 
+    params, 
+    verbose=FALSE, 
+    use_inverse=use_inverse, 
+    election_config=election_config
   )
+  
   single_result <- process_results(
-    single_fit$precinct_re_fit, 
-    single_fit$loess_fit, 
+    single_fit, 
     raw_data,
-    single_fit$resid,
     params,
     election_config=election_config,
     plots = FALSE, 
     save_results = FALSE,
     verbose=FALSE
   )
+  
   if(verbose){
     print(paste(
       "Raw Result:", 
-      exp(tail(single_result$time_df$log_fit, n=1)) * 
-        sum(exp(single_result$precinct_df$re_fit))
+      exp(tail(single_result@time_df$log_fit, n=1)) * 
+        sum(exp(single_result@precinct_df$re_fit))
     ))
   }  
     
   for(i in 1:n_boot){
     print(paste0("Boot ", i))
-    bs_data <- raw_data %>% sample_frac(replace = TRUE) 
-    bs_params <- fit_em_model(
-      bs_data, params, verbose=FALSE,use_inverse=use_inverse,election_config=election_config
+    bs_data <- raw_data %>% sample_frac(replace=TRUE) 
+    bs_fit <- fit_em_model(
+      bs_data, 
+      params, 
+      verbose=FALSE,
+      use_inverse=use_inverse,
+      election_config=election_config
     )
-    bs_results <- process_results(
-      bs_params$precinct_re_fit, 
-      bs_params$loess_fit, 
+    
+    bs_list[[i]] <- process_results(
+      bs_fit,
       bs_data,
-      bs_params$resid,
       params=params,
       election_config=election_config,
       plots = FALSE, 
@@ -53,47 +60,47 @@ fit_bootstrap <- function(
       verbose=FALSE
     )
     
-    bootstrap_results[[i]] <- bs_results$time_df %>% 
-      mutate(sim = i)
-    
-    ranef_results[[i]] <- bs_results$precinct_df %>% 
-      select(precinct, re_fit) %>% mutate(sim=i)
-    
     if(verbose){
       print(paste(
         i, 
-        exp(tail(bs_results$time_df$log_fit, n=1)) * 
-          sum(exp(bs_results$precinct_df$re_fit))
+        exp(tail(bs_list[[i]]@time_df$log_fit, n=1)) * 
+          sum(exp(bs_list[[i]]@precinct_df$re_fit))
       ))
     }
   }
-  ranef_df <- bind_rows(ranef_results)
-  bootstrap_df <- bind_rows(bootstrap_results)
   
+  bind_dfs <- function(slot_name){
+    bind_rows(
+      lapply(bs_list, slot, slot_name),
+      .id="sim"
+    )
+  }
+  
+  bootstrap_df <- bind_dfs("time_df")
+  ranef_df <- bind_dfs("precinct_df")
+
   max_time_of_day <- max(bootstrap_df$time_of_day)
   
-  ## extend sims
-  bootstrap_df <- bootstrap_df %>%
-    full_join(
-      bootstrap_df %>%
-        group_by(sim) %>%
-        mutate(min_time = min(time_of_day)) %>%
-        filter(time_of_day == max(time_of_day)) %>%
-        select(sim, log_fit, time_of_day, min_time) %>% 
-        rename(max_log_fit = log_fit, max_time = time_of_day) %>%
-        right_join(
-          expand.grid(
-            time_of_day = unique(bootstrap_df$time_of_day),
-            sim = unique(bootstrap_df$sim)
-          )
-        )
+  ## extend simulations in case the bootstrap cut off the times
+  sim_times <- bootstrap_df %>%
+    group_by(sim) %>%
+    summarise(
+      min_time = min(time_of_day),
+      max_time = max(time_of_day),
+      fit_at_max = log_fit[time_of_day == max_time]
+    )
+  
+  bootstrap_df <- bootstrap_df %>% 
+    right_join(
+      data.frame(time_of_day = unique(bootstrap_df$time_of_day)),
+      by="time_of_day"
     ) %>%
+    left_join(sim_times, by="sim") %>%
     mutate(
-      log_fit = ifelse(is.na(log_fit) & (time_of_day > max_time), max_log_fit, log_fit),
+      log_fit = ifelse(is.na(log_fit) & (time_of_day > max_time), fit_at_max, log_fit),
       log_fit = ifelse(is.na(log_fit) & (time_of_day < min_time), -100, log_fit)
     ) %>%
-    select(-max_log_fit)
-  
+    select(-min_time, -max_time, -fit_at_max)
   
   bootstrap_df <- bootstrap_df %>% 
     left_join(ranef_df %>% group_by(sim) %>% summarise(sum_exp_re = sum(exp(re_fit)))) %>%
@@ -170,17 +177,19 @@ turnout_plot <- function(
   ref_turnout <- config$ref_turnout
   
   single_fit <- bs$single_result
+  time_df <- single_fit@time_df 
+  precinct_df <- single_fit@precinct_df
   
   resid <- raw_data %>%
     mutate(time_of_day = config$base_time + minutes(minute)) %>%
     left_join(
-      single_fit$time_df %>% 
+      time_df %>% 
         select(time_of_day, log_fit) %>%
         rename(time_fit = log_fit) %>%
         mutate(total_turnout = bs$bootstrap_ci$turnout_500)
     ) %>%
     mutate(
-      re_fit = single_fit$precinct_df$re_fit[precinct_num],
+      re_fit = precinct_df$re_fit[precinct_num],
       resid = log_obs - time_fit - re_fit
     )
   

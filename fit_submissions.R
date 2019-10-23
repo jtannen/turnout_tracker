@@ -4,6 +4,7 @@ library(tidyr)
 library(ggplot2)
 library(lubridate)
 library(Matrix)
+library(magrittr)
 select <- dplyr::select
 
 source("theme_sixtysix.R")
@@ -17,12 +18,12 @@ source('types.R')
 
 load_google_data <- function(
   election_config,
-  rda="outputs/google_download.Rda"
+  rds="outputs/google_download.Rds"
 ){
   validate_config(election_config)
   config <- extend_config(election_config)
   
-  raw_data <- safe_load(rda)
+  raw_data <- readRDS(rds)
   
   raw_data <- raw_data %>% filter(
     !is.na(obs) & 
@@ -30,7 +31,7 @@ load_google_data <- function(
       !is.na(precinct)
   )
   
-  # filter obviously unreasonable submissions
+  # filter obviously unreasonable raw_data
   raw_data$obs[raw_data$obs == 0] <- 1
   raw_data <- raw_data %>% filter(obs > 0 & obs <= 900) 
   raw_data <- raw_data %>% filter(
@@ -83,7 +84,7 @@ generate_fake_data <- function(
         precinct_re_samp[precinct_num] +
         noise +
         true_log_pattern[minute]
-    )
+    ) %>% round()
   )  
   
   raw_data <- fake_data %>% 
@@ -94,6 +95,7 @@ generate_fake_data <- function(
     ) %>%
     dplyr::select(row_number, precinct, time, obs)
   
+  ## valid final turnout since the pattern ends at 1
   true_turnout <- sum(exp(election_fe_samp + precinct_re_samp))
   
   return(
@@ -108,17 +110,18 @@ generate_fake_data <- function(
 }
 
 
-load_data <- function(use_real_data, election_config, params, google_rda="outputs/google_download.Rda"){
+load_data <- function(use_real_data, election_config, params, google_rds="outputs/google_download.Rds"){
   validate_config(election_config)
   
   if(use_real_data){
     fake_data <- NULL
-    raw_data <- load_google_data(election_config, google_rda)
+    raw_data <- load_google_data(election_config, google_rds)
   } else {
     fake_data <- generate_fake_data(params, election_config)
     raw_data <- fake_data$raw_data
   }  
 
+  raw_data$obs[raw_data$obs == 0] <- 1
   raw_data$log_obs <- log(raw_data$obs)
   raw_data$precinct_num <- match(
     raw_data$precinct,
@@ -154,8 +157,8 @@ tabulate_x <- function(
   p_tab <- table(precinct)
   n_obs_p[asnum(names(p_tab))] <- p_tab
   
-  sum_tab <- tapply(INDEX=precinct, X=x, FUN=sum)
-  x_sum_p[asnum(names(sum_tab))] <- sum_tab
+  sum_x <- tapply(INDEX=precinct, X=x, FUN=sum)
+  x_sum_p[asnum(names(sum_x))] <- sum_x
   
   return(
     list(
@@ -165,6 +168,32 @@ tabulate_x <- function(
   )
 }
 
+optimize_precinct_re_of_model <- function(
+  model_fit, params, raw_data, verbose
+){
+  x_tab <- tabulate_x(
+    raw_data$precinct_num,
+    model_fit@resid + 
+      model_fit@precinct_re_fit[raw_data$precinct_num],
+    params@n_precincts
+  )
+  n_obs_p <- x_tab$n_obs_p 
+  x_sum_p <- x_tab$x_sum_p
+  
+  model_fit@precinct_re_fit <- optimize_precinct_re(
+    mu=params@precinct_fe$precinct_fe,
+    sigma_inv=params@precinct_cov_inv,
+    n_obs = n_obs_p,
+    x_sum = x_sum_p,
+    sigma_noise=model_fit@sigma_noise,
+    first_mat=model_fit@first_mat_stored,
+    first_mat_is_inv=model_fit@first_mat_is_inv
+  )
+  
+  model_fit %<>% update_resid(raw_data, verbose)
+  
+  return(model_fit)
+}
 
 optimize_precinct_re <- function(
   mu,
@@ -175,50 +204,57 @@ optimize_precinct_re <- function(
   first_mat,
   first_mat_is_inv = FALSE
 ){
+  mu_plus_x <- sigma_inv %*% mu + x_sum / sigma_noise^2
   if(first_mat_is_inv){
-    new_mu <- first_mat %*%
-      (sigma_inv %*% mu + x_sum / sigma_noise^2)
+    new_mu <- first_mat %*% mu_plus_x
   }else{
-    new_mu <- solve(first_mat, (sigma_inv %*% mu + x_sum / sigma_noise^2))
+    new_mu <- solve(first_mat, mu_plus_x)
   }
   return(as.vector(new_mu))
 }
 
 precomp_re_first_mat_inv <- function(
-  x_list,
+  n_obs_p,
   params,
   sigma_noise
 ){
+  ## Calculates (Sigma^-1 + N/s^2)^-1
+  Sigma <- params@precinct_cov
+  
   U <- Matrix::sparseMatrix(
-    i = which(x_list$n_obs_p > 0),
-    j = 1:sum(x_list$n_obs_p > 0),
-    x = sqrt(x_list$n_obs_p[x_list$n_obs_p > 0]) / sigma_noise,
-    dims = c(nrow(params@precinct_cov), sum(x_list$n_obs_p > 0))
+    i = which(n_obs_p > 0),
+    j = 1:sum(n_obs_p > 0),
+    x = sqrt(n_obs_p[n_obs_p > 0]) / sigma_noise,
+    dims = c(nrow(Sigma), sum(n_obs_p > 0))
   )
   V <- t(U)
-  first_mat_stored <- params@precinct_cov - 
-    params@precinct_cov %*% U %*% 
-    solve(
-      Diagonal(n = sum(x_list$n_obs_p > 0)) +
-        V %*% params@precinct_cov %*% U
-    ) %*% V %*% params@precinct_cov
-  first_mat_is_inv <- TRUE
-  return(list(first_mat_stored, first_mat_is_inv))
+  
+  first_mat_stored <- Sigma - (
+    Sigma %*% U %*% 
+      solve(
+        Diagonal(n = sum(n_obs_p > 0)) +
+          V %*% Sigma %*% U
+      ) %*% 
+    V %*% Sigma
+  )
+  
+  return(first_mat_stored)
 }
 
 precomp_re_first_mat <- function(
-  x_list,
+  n_obs_p,
   params,
   sigma_noise
 ){
+  ## Calculates (Sigma^-1 + N/s^2)
   first_mat_stored <- 
     Diagonal(
-      length(x_list$n_obs_p), 
-      x_list$n_obs_p / sigma_noise^2 
+      length(n_obs_p), 
+      n_obs_p / sigma_noise^2 
     ) + 
     params@precinct_cov_inv
-  first_mat_is_inv <- FALSE
-  return(list(first_mat_stored, first_mat_is_inv))
+
+  return(first_mat_stored)
 }
 
 
@@ -235,7 +271,24 @@ calc_resid <- function(
   )
 }
 
-
+update_resid <- function(model_fit, raw_data, verbose=TRUE){
+  old_resid <- model_fit@resid
+  
+  new_resid <- calc_resid(
+    raw_data$log_obs,
+    raw_data$precinct_num,
+    model_fit@precinct_re_fit,
+    model_fit@loess_predicted
+  )
+  
+  if(verbose){
+    print(paste0("Sum Sq Resid: ", sum(new_resid^2)))
+    print(paste0("Change: ", sum(old_resid^2)- sum(new_resid^2)))
+  }
+  
+  model_fit@resid <- new_resid
+  return(model_fit)
+}
 
 get_loess_params <- function(n_obs){
   if(n_obs < 50){
@@ -251,6 +304,32 @@ get_loess_params <- function(n_obs){
     loess_span <- 0.3
   }
   return(list(loess_degree=loess_degree, loess_span=loess_span))
+}
+
+optimize_loess <- function(
+  model_fit, 
+  raw_data, 
+  loess_span, 
+  loess_degree,
+  verbose=TRUE
+){
+  resid <- model_fit@resid
+  loess_pred_old <- model_fit@loess_predicted
+  
+  model_fit@loess_fit <- loess(
+    x ~ minute, 
+    data.frame(
+      x=resid + loess_pred_old,
+      minute=raw_data$minute
+    ),
+    span = loess_span,
+    degree = loess_degree
+  )
+  
+  model_fit@loess_predicted <- predict(model_fit@loess_fit)
+  model_fit %<>% update_resid(raw_data, verbose)
+  
+  return(model_fit)
 }
 
 
@@ -272,37 +351,45 @@ fit_em_model <- function(
   loess_params <- get_loess_params(n_obs)
   loess_degree <- loess_params$loess_degree
   loess_span <- loess_params$loess_span
-  n_precincts <- nrow(params@precinct_fe)
   
   ## Precomp values
-  x_list <- tabulate_x(
+  x_tab <- tabulate_x(
     raw_data$precinct_num,
     rep(0, n_obs),
-    n_precincts
+    params@n_precincts
   )
+  n_obs_p <- x_tab$n_obs_p 
+  x_sum_p <- x_tab$x_sum_p
   
   if(verbose) print("Precomputing Matrix")
   if(use_inverse){
-    precomp_mat <- precomp_re_first_mat_inv(x_list, params, sigma_noise)
+    first_mat_stored <- precomp_re_first_mat_inv(
+      n_obs_p, params, sigma_noise
+    )
   }else{
-    precomp_mat <- precomp_re_first_mat(x_list, params, sigma_noise)
+    first_mat_stored <- precomp_re_first_mat(
+      n_obs_p, params, sigma_noise
+    )
   }
-  first_mat_stored <- precomp_mat[[1]]
-  first_mat_is_inv <- precomp_mat[[2]]
 
   if(verbose) print("Sampling")
   ## initialize  
-  precinct_re_fit <- rep(0, n_precincts)
+  precinct_re_fit <- rep(0, params@n_precincts)
   log_pattern_fit <- rep(0, config$n_minutes)
   loess_predicted <- 0
-  loess_predicted_final <- 0
+  loess_predicted_eod <- 0
+  loess_fit <- NULL
   
-  resid <- calc_resid(
-    raw_data$log_obs,
-    raw_data$precinct_num,
+  current_fit <- modelFit(
     precinct_re_fit,
-    loess_predicted
+    loess_fit,
+    loess_predicted,
+    first_mat_stored,
+    sigma_noise=sigma_noise,
+    first_mat_is_inv=use_inverse
   )
+  
+  current_fit %<>% update_resid(raw_data, verbose)
   
   continue <- TRUE
   loop_no <- 0
@@ -311,88 +398,40 @@ fit_em_model <- function(
     if(verbose) print(paste("Iter ", loop_no))
     loop_no <- loop_no + 1
     
-    x_list <- tabulate_x(
-      raw_data$precinct_num,
-      resid + precinct_re_fit[raw_data$precinct_num],
-      n_precincts
+    current_fit %<>% optimize_precinct_re_of_model(
+      params, 
+      raw_data,
+      verbose
     )
+
+    current_fit %<>% optimize_loess(
+      raw_data,
+      loess_span,
+      loess_degree,
+      verbose
+    )    
     
-    precinct_re_fit <- optimize_precinct_re(
-      mu=params@precinct_fe$precinct_fe,
-      sigma_inv=params@precinct_cov_inv,
-      n_obs = x_list$n_obs_p,
-      x_sum = x_list$x_sum_p,
-      sigma_noise=sigma_noise,
-      first_mat=first_mat_stored,
-      first_mat_is_inv=first_mat_is_inv
-    )
-    
-    old_resid <- resid
-    resid <- calc_resid(
-      raw_data$log_obs,
-      raw_data$precinct_num,
-      precinct_re_fit,
-      loess_predicted
-    )
-    
-    if(verbose){
-      print(paste0("Sum Sq Resid: ", sum(resid^2)))
-      print(paste0("Change: ", sum(old_resid^2)- sum(resid^2)))
-    }
-    
-    loess_fit <- loess(
-      x ~ minute, 
-      data.frame(
-        x=resid + loess_predicted,
-        minute=raw_data$minute
-      ),
-      span = loess_span,
-      degree = loess_degree
-    )
-    loess_predicted <- predict(loess_fit)
-    
-    old_predicted_final <- loess_predicted_final
-    loess_predicted_final <- predict(
-      loess_fit, 
+    prior_predicted_eod <- loess_predicted_eod
+    loess_predicted_eod <- predict(
+      current_fit@loess_fit, 
       newdata=data.frame(minute=max(raw_data$minute))
     )
     
-    old_resid <- resid
-    
-    resid <- calc_resid(
-      raw_data$log_obs,
-      raw_data$precinct_num,
-      precinct_re_fit,
-      loess_predicted
-    )
-    
     if(verbose){
-      print(paste0("Sum Sq Resid: ", sum(resid^2)))
-      print(paste0("Change: ", sum(old_resid^2)- sum(resid^2)))
-      print(paste0("Final Turnout: ", loess_predicted_final))
-      print(paste0("Change: ", abs(loess_predicted_final - old_predicted_final)))
+      print(paste0("Final Turnout: ", loess_predicted_eod))
+      print(paste0("Change: ", abs(loess_predicted_eod - prior_predicted_eod)))
     }
     
-    # continue <- abs(sum(resid^2) - sum(old_resid^2)) > (tol * sum(old_resid^2))
-    continue <- abs(loess_predicted_final - old_predicted_final) > (tol * old_predicted_final)
+    continue <- abs(loess_predicted_eod - prior_predicted_eod) > (tol * prior_predicted_eod)
   }
   print(paste('n_iter =', loop_no))
   
-  return(list(
-    precinct_re_fit=precinct_re_fit, 
-    loess_fit=loess_fit, 
-    first_mat_stored=first_mat_stored,
-    first_mat_is_inv=first_mat_is_inv,
-    resid=resid,
-    sigma_noise=sigma_noise
-  ))
+  return(current_fit)
 }  
 
 process_results <- function(
-  precinct_re_fit, 
-  loess_fit, 
+  model_fit,
   raw_data,
-  resid,
   params,
   election_config,
   plots = TRUE, 
@@ -404,6 +443,10 @@ process_results <- function(
 ){
   validate_config(election_config)
   config <- extend_config(election_config)
+  
+  loess_fit <- model_fit@loess_fit
+  precinct_re_fit <- model_fit@precinct_re_fit
+  resid <- model_fit@resid
   
   printv <- function(x) if(verbose) print(x)
   
@@ -517,23 +560,23 @@ process_results <- function(
       prediction = exp(re_fit + log_fit)
     )
 
-
+  model_predictions <- modelPredictions(
+    precinct_df=precinct_df,
+    time_df=time_df,
+    full_predictions=full_predictions
+  )
+  
   if(save_results){
     printv('saving predictions')
     save_with_backup(
-      precinct_df, time_df, full_predictions,
+      model_predictions,
+      "model_predictions",
       save_dir=save_dir
     )
 
   }
 
-  return(
-    list(
-      precinct_df=precinct_df,
-      time_df=time_df,
-      full_predictions=full_predictions
-    )
-  )
+  return(model_predictions)
 }
 
 
@@ -541,7 +584,8 @@ if(FALSE){
   ## Run Once:
   test_fit <- fit_em_model(
     raw_data, 
-    params
+    params,
+    election_config
   )
   
   process_results(

@@ -32,17 +32,17 @@ config <- extend_config(config)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
 
-params <- safe_load("outputs/params.Rda")
-bs <- safe_load("outputs/bootstrap.Rda")
+params <- readRDS("outputs/params.Rds")
+bs <- readRDS("outputs/bootstrap.Rds")
 turnout_ci <- tail(bs$bootstrap_ci, 1)
 
 get_ward <- config$get_ward_from_precinct
 
-raw_data <- safe_load("outputs/raw_data.Rda")
+raw_data <- readRDS("outputs/raw_data.Rds")
 raw_data <- raw_data %>% mutate(ward = config$get_ward(precinct))
 
-current_time <- max(bs$single_result$time_df$time_of_day)
-ward_turnout <- bs$single_result$full_predictions %>%
+current_time <- max(bs$single_result@time_df$time_of_day)
+ward_turnout <- bs$single_result@full_predictions %>%
   mutate(ward = get_ward(precinct)) %>%
   filter(time_of_day == current_time) %>%
   group_by(ward) %>%
@@ -52,7 +52,7 @@ ward_turnout <- bs$single_result$full_predictions %>%
     re_over_fe = sum(exp(re_fit)) / sum(exp(precinct_fe))
   )
 
-precinct_turnout <- bs$single_result$full_predictions %>%
+precinct_turnout <- bs$single_result@full_predictions %>%
   filter(time_of_day == current_time) %>%
   group_by(precinct) %>%
   summarise(
@@ -80,7 +80,7 @@ ward_ci <- bs$bootstrap_topline %>%
     turnout_median = quantile(turnout, 0.5)
   )
 
-wards <- safe_load("data/wards.Rda")
+wards <- readRDS("data/wards.Rds")
 wards <- wards %>% 
   left_join(ward_turnout) %>%
   left_join(ward_ci)

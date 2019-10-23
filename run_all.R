@@ -1,6 +1,6 @@
 ## SET THE WORKING DIRECTORY FIRST
 ## TO THE ELECTION-SPECIFIC FOLDER
-## setwd("C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/phila_201911/")
+# setwd("C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/phila_201911/")
 
 source("config.R")
 source("../util_tracker.R", chdir=TRUE)
@@ -28,8 +28,8 @@ library(tidyverse)
 # 
 # df <- read_csv(config$turnout_df_path, col_types = "ccd")
 # 
-# precincts <- safe_load("data/precincts.Rda")
-# wards <- safe_load("data/wards.Rda")
+# precincts <- readRDS("data/precincts.Rds")
+# wards <- readRDS("data/wards.Rds")
 # 
 # params <- calc_params(
 #   turnout_df=df,
@@ -43,7 +43,10 @@ library(tidyverse)
 ## ON ELECTION DAY
 #####################
 
-params <- safe_load("outputs/params.Rda")
+params <- readRDS("outputs/params.Rds")
+
+# USE_REAL_DATA <- FALSE
+# IS_TEST <- TRUE
 
 # USE_REAL_DATA <- TRUE
 # IS_TEST <- FALSE
@@ -56,6 +59,19 @@ if(
 SHOULD_TWEET <- TRUE
 reply_tweet_id <- NA
 time_of_last_tweet <- NA
+
+print_sim_turnout <- function(data_load, config){
+  config <- extend_config(config)
+  true_turnout_eod <- data_load$fake_data$true_turnout
+  curr_minutes <- time_length(
+    ymd_hms(max(data_load$fake_data$raw_data$time)) - 
+      ymd_hms(config$base_time),
+    "minutes"
+  )
+  frac <- data_load$fake_data$true_pattern(config$n_minutes)[curr_minutes]
+  print("True Turnout")
+  print(data_load$fake_data$true_turnout * frac)
+}
 
 
 run_iter <- 0
@@ -72,14 +88,17 @@ while(TRUE){
   raw_data <- data_load$raw_data
   
   print("save_with_backup")
-  save(raw_data, file=paste0("outputs/raw_data.Rda"))
+  saveRDS(raw_data, file=paste0("outputs/raw_data.Rds"))
   write.csv(raw_data, file=sprintf("outputs/raw_data_%s.csv", config$city_filename), row.names=FALSE)
-  if(!USE_REAL_DATA) print(data_load$fake_data$true_turnout)
-
-  print("fit_bootstrap")
-  bs <- fit_bootstrap(
-    raw_data,
-    params,
+  
+  if(!USE_REAL_DATA){
+    print_sim_turnout(data_load, config)
+  }
+  
+  print("fit bootstrap")
+  bs <- fit_and_bootstrap(
+    raw_data=raw_data,
+    params=params,
     election_config=config,
     n_boot=40,
     use_inverse=FALSE,
@@ -130,3 +149,5 @@ while(TRUE){
     }
   }
 }
+
+

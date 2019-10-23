@@ -110,8 +110,7 @@ calc_params <- function(
   precinct_cov_inv <- solve(precinct_cov)
   
   return(
-    new(
-      "modelParams",
+    modelParams(
       turnout_df=turnout_df,
       election_fe=election_fe,
       precinct_fe=precinct_fe,
