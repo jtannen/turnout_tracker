@@ -3,35 +3,35 @@ library(dplyr)
 setClass(
   "modelParams",
   slots = c(
-    'turnout_df',
-    'election_fe',
-    'precinct_fe',
-    'svd',
-    'precinct_cov',
-    'precinct_cov_inv',
-    'n_precincts'
+    turnout_df="data.frame",
+    election_fe="data.frame",
+    precinct_fe="data.frame",
+    svd="list",
+    precinct_cov="matrix",
+    precinct_cov_inv="matrix",
+    n_precincts="integer"
   )
 )
 
 setClass(
   "modelFit",
   slots = c(
-    "precinct_re_fit", 
-    "loess_fit", 
-    "loess_predicted",
-    "first_mat_stored",
-    "first_mat_is_inv",
-    "resid",
-    "sigma_noise"
+    precinct_re_fit="numeric", 
+    loess_fit="list",  #loess class doesn't seem to work, hack is wrap it in a list 
+    loess_predicted="numeric",
+    first_mat_stored="Matrix",
+    first_mat_is_inv="logical",
+    resid="numeric",
+    sigma_noise="numeric"
   )
 )
 
 setClass(
   "modelPredictions",
   slots=c(
-      'precinct_df',
-      'time_df',
-      'full_predictions'
+      precinct_df="data.frame",
+      time_df="data.frame",
+      full_predictions="data.frame"
   )
 )
 
@@ -68,7 +68,7 @@ modelFit <- function(
   new(
     "modelFit",
     precinct_re_fit=precinct_re_fit, 
-    loess_fit=loess_fit, 
+    loess_fit=list(loess_fit), 
     loess_predicted=loess_predicted,
     first_mat_stored=first_mat_stored,
     first_mat_is_inv=first_mat_is_inv,

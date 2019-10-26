@@ -327,7 +327,7 @@ optimize_loess <- function(
   resid <- model_fit@resid
   loess_pred_old <- model_fit@loess_predicted
   
-  model_fit@loess_fit <- loess(
+  model_fit@loess_fit[[1]] <- loess(
     x ~ minute, 
     data.frame(
       x=resid + loess_pred_old,
@@ -336,8 +336,7 @@ optimize_loess <- function(
     span = loess_span,
     degree = loess_degree
   )
-  
-  model_fit@loess_predicted <- predict(model_fit@loess_fit)
+  model_fit@loess_predicted <- predict(model_fit@loess_fit[[1]])
   model_fit %<>% update_resid(raw_data, verbose)
   
   return(model_fit)
@@ -389,13 +388,15 @@ fit_em_model <- function(
   log_pattern_fit <- rep(0, config$n_minutes)
   loess_predicted <- 0
   loess_predicted_eod <- 0
-  loess_fit <- NULL
+  
+  ## TODO generalize beyond loess, create "predict_time()" function instead
+  dummy_loess <- loess(x ~ minute, data.frame(x=0, minute=raw_data$minute))
   
   current_fit <- modelFit(
-    precinct_re_fit,
-    loess_fit,
-    loess_predicted,
-    first_mat_stored,
+    precinct_re_fit=precinct_re_fit,
+    loess_fit=dummy_loess,
+    loess_predicted=loess_predicted,
+    first_mat_stored=first_mat_stored,
     sigma_noise=sigma_noise,
     first_mat_is_inv=use_inverse
   )
@@ -424,7 +425,7 @@ fit_em_model <- function(
     
     prior_predicted_eod <- loess_predicted_eod
     loess_predicted_eod <- predict(
-      current_fit@loess_fit, 
+      current_fit@loess_fit[[1]], 
       newdata=data.frame(minute=max(raw_data$minute))
     )
     
@@ -455,7 +456,7 @@ process_results <- function(
   validate_config(election_config)
   config <- extend_config(election_config)
   
-  loess_fit <- model_fit@loess_fit
+  loess_fit <- model_fit@loess_fit[[1]]
   precinct_re_fit <- model_fit@precinct_re_fit
   resid <- model_fit@resid
   
@@ -592,6 +593,7 @@ process_results <- function(
 
 
 if(FALSE){
+  ## NO LONGER WORKS WITH NEW TYPES
   ## Run Once:
   test_fit <- fit_em_model(
     raw_data, 
