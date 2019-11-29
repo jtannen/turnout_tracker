@@ -1,14 +1,24 @@
-## SET THE WORKING DIRECTORY FIRST
-## TO THE ELECTION-SPECIFIC FOLDER
-# setwd("C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/phila_201911/")
 
-source("config.R")
-source("../util_tracker.R", chdir=TRUE)
-source("../download_google_sheet.R", chdir = TRUE)
-source("../fit_submissions.R", chdir = TRUE)
-source("../bootstrap.R", chdir = TRUE)
-source("../generate_plots.R", chdir=TRUE)
-source("../tweets.R", chdir=TRUE)
+ELECTION <- "phila_201911"
+
+TRACKER_FOLDER <- "C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/"
+CONFIG_FOLDER <- sprintf("%s/configs/%s", TRACKER_FOLDER, ELECTION)
+
+setwd(TRACKER_FOLDER)
+add_election_path <- function(file){
+  sprintf("%s/%s", CONFIG_FOLDER, file)
+}
+
+OUTPUT_DIR <- add_election_path("outputs")
+output_file <- function(file) sprintf("%s/%s", OUTPUT_DIR, file)
+
+source(add_election_path("config.R"))
+source("util_tracker.R")
+source("download_google_sheet.R")
+source("fit_submissions.R")
+source("bootstrap.R")
+source("generate_plots.R")
+source("tweets.R")
 
 library(rmarkdown)
 library(tidyverse)
@@ -16,20 +26,20 @@ library(tidyverse)
 # #######################
 # ## BEFORE ELECTION DAY
 # #######################
-# source("../prep_shapefiles.R", chdir = TRUE)
+# source("prep_shapefiles.R")
 # prep_shapefile(
-#   config$precinct_shp_path,
+#   add_election_path(config$precinct_shp_path),
 #   config$get_precinct_id,
 #   config$get_ward_from_precinct
 # )
 # 
 # ## Precompute the historic parameters
-# source("../calc_params.R", chdir=TRUE)
+# source("precalc_params.R")
 # 
-# df <- read_csv(config$turnout_df_path, col_types = "ccd")
+# df <- read_csv(add_election_path(config$turnout_df_path), col_types = "ccd")
 # 
-# precincts <- readRDS("data/precincts.Rds")
-# wards <- readRDS("data/wards.Rds")
+# precincts <- readRDS(add_election_path("data/precincts.Rds"))
+# wards <- readRDS(add_election_path("data/wards.Rds"))
 # 
 # params <- calc_params(
 #   turnout_df=df,
@@ -37,13 +47,13 @@ library(tidyverse)
 # )
 # diagnostics(params, precincts, config)
 # 
-# save_with_backup(params, stem="params", dir="outputs")
+# save_with_backup(params, stem="params", dir=OUTPUT_DIR)
 
 #####################
 ## ON ELECTION DAY
 #####################
 
-params <- readRDS("outputs/params.Rds")
+params <- readRDS(output_file("params.Rds"))
 
 # USE_GOOGLE_DATA <- TRUE
 
@@ -56,7 +66,7 @@ if(
 ) stop("must specify values first!")
 
 SHOULD_TWEET <- TRUE
-reply_tweet_id <- NA
+reply_tweet_id <- 1191713446808686598
 time_of_last_tweet <- NA
 
 
@@ -68,14 +78,23 @@ while(TRUE){
   
   if(USE_GOOGLE_DATA){
     print("download_google_sheet")
-    download_google_sheet(config, test_data=IS_TEST)
+    download_google_sheet(config, test_data=IS_TEST, save_dir=OUTPUT_DIR)
   }
   
   print("load_data")
-  data_load <- load_data(USE_GOOGLE_DATA, config, params)
+  data_load <- load_data(
+    USE_GOOGLE_DATA, 
+    config, 
+    params, 
+    google_rds=output_file("google_download.Rds")
+  )
   raw_data <- data_load$raw_data
-  saveRDS(raw_data, file=paste0("outputs/raw_data.Rds"))
-  write.csv(raw_data, file=sprintf("outputs/raw_data_%s.csv", config$city_filename), row.names=FALSE)
+  saveRDS(raw_data, file=output_file("raw_data.Rds"))
+  write.csv(
+    raw_data, 
+    file=output_file("raw_data.csv"), 
+    row.names=FALSE
+  )
 
   print("fit bootstrap")
   bs <- fit_and_bootstrap(
@@ -84,9 +103,9 @@ while(TRUE){
     election_config=config,
     n_boot=40,
     use_inverse=FALSE,
-    verbose=FALSE
+    verbose=TRUE
   )
-  save_with_backup(bs, stem="bootstrap", dir="outputs")
+  save_with_backup(bs, stem="bootstrap", dir=OUTPUT_DIR)
   
   if(IS_TEST){
     filename <- "turnout_tracker_%s_test.html"
@@ -96,9 +115,9 @@ while(TRUE){
   
   print("rmarkdown")
   rmarkdown::render( 
-    "../election_tracker.Rmd", 
+    "election_tracker.Rmd", 
     knit_root_dir = getwd(),
-    output_dir = "outputs",
+    output_dir = OUTPUT_DIR,
     output_file = sprintf(filename, config$city_filename)
   )
   
@@ -106,28 +125,35 @@ while(TRUE){
   for(f0 in c(filename, "precinct_turnout_%s.csv", "raw_data_%s.csv")){
     f <- sprintf(f0, config$city_filename)
     file.copy(
-      paste0("outputs/", f),
+      output_file(f),
       paste0("C:/Users/Jonathan Tannen/Dropbox/github_page/jtannen.github.io/", f),
       overwrite=TRUE
     )
   }
 
-  system("../upload_git.bat")
-  
+  system("upload_git.bat")
+
   if(SHOULD_TWEET){
     is_time_to_tweet <- is.na(time_of_last_tweet) | (
-      (ymd_hms(current_time) - ymd_hms(time_of_last_tweet)) >= hours(1)
+      (ymd_hms(current_time) - ymd_hms(time_of_last_tweet)) >= minutes(20)
     )
+    is_time_to_tweet <- TRUE
 
     if(is_time_to_tweet){
       reply_tweet_id <- tweet_update(
-        reply_tweet_id, 
-        turnout_ci,  
-        current_time, 
-        config, 
+        reply_tweet_id,
+        turnout_ci,
+        current_time,
+        config,
         c(turnout_plot_file, relative_map_file)
       )
       time_of_last_tweet <- current_time
+    } else {
+      print(sprintf(
+        "Not Tweeting: current time: %s, last tweet: %s", 
+        current_time, 
+        time_of_last_tweet
+      ))
     }
   }
 }

@@ -18,11 +18,11 @@ setClass(
   slots = c(
     precinct_re_fit="numeric", 
     loess_fit="list",  #loess class doesn't seem to work, hack is wrap it in a list 
-    loess_predicted="numeric",
     first_mat_stored="Matrix",
     first_mat_is_inv="logical",
-    resid="numeric",
-    sigma_noise="numeric"
+    sigma_noise="numeric",
+    raw_data="data.frame",
+    params="modelParams"
   )
 )
 
@@ -43,7 +43,6 @@ modelParams <- function(
   precinct_cov,
   precinct_cov_inv
 ){
-  
   new(
     "modelParams",
     turnout_df=turnout_df,
@@ -59,22 +58,74 @@ modelParams <- function(
 modelFit <- function(
   precinct_re_fit, 
   loess_fit, 
-  loess_predicted,
   first_mat_stored,
   first_mat_is_inv,
   sigma_noise,
-  resid=NULL
+  raw_data,
+  params
 ){
   new(
     "modelFit",
     precinct_re_fit=precinct_re_fit, 
     loess_fit=list(loess_fit), 
-    loess_predicted=loess_predicted,
     first_mat_stored=first_mat_stored,
     first_mat_is_inv=first_mat_is_inv,
     sigma_noise=sigma_noise,
-    resid=sigma_noise
+    raw_data=raw_data,
+    params=params
   )
+}
+
+winsorize <- function(x, t = 0.95){
+  mean_x <- mean(x)
+  x_demean <- x - mean_x
+  cutoff <- quantile(abs(x_demean), probs=t, na.rm=TRUE)
+  return(
+    mean_x + sign(x_demean) * pmin(abs(x_demean), cutoff)
+  )
+}
+
+validate_model_fit <- function(model_fit){
+  ## Dumb for now. Can add checks on data quality.
+  if(!is(model_fit, "modelFit")) stop("Must be class modelFit")
+}
+
+predict_obs <- function(model_fit){
+  validate_model_fit(model_fit)
+  
+  obs_precinct_num <- model_fit@raw_data$precinct_num
+  precinct_fit <- model_fit@precinct_re_fit
+  loess_predicted <- predict_loess_obs(model_fit)
+
+  return(
+    precinct_fit[obs_precinct_num] + loess_predicted
+  )  
+}
+
+predict_loess_obs <- function(model_fit, end_of_day=FALSE){
+  validate_model_fit(model_fit)
+  if(end_of_day){
+    newdata <- data.frame(minute=max(model_fit@raw_data$minute))
+    predict(model_fit@loess_fit[[1]], newdata=newdata)
+  } else {
+    predict(model_fit@loess_fit[[1]])
+  }
+}
+
+calc_resid <- function(model_fit, winsorize=FALSE){
+  validate_model_fit(model_fit)
+  
+  log_obs <- model_fit@raw_data$log_obs
+  
+  resid <- log_obs - predict_obs(model_fit)
+  if(winsorize) resid <- winsorize(resid)
+  
+  return(resid)
+}
+
+print_resid <- function(model_fit){
+  loess_predicted_eod <- 0
+  sum_resid_sq <- sum(calc_resid(current_fit)^2)
 }
 
 modelPredictions <- function(
@@ -89,6 +140,14 @@ modelPredictions <- function(
     full_predictions=full_predictions
   )
 }
+
+
+predict_topline <- function(model_predictions, end_of_day=FALSE){
+  sum_exp_divs <- sum(exp(model_predictions@precinct_df$re_fit))
+  exp_time_fit_eod <- exp(tail(model_predictions@time_df$log_fit, n=1))
+  return(sum_exp_divs * exp_time_fit_eod)
+}
+
 
 validate_turnout_df <- function(df){
   required_columns <- c("precinct", "election", "turnout")

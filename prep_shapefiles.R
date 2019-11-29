@@ -1,8 +1,8 @@
-library(dplyr)
-library(sf)
-library(sp)
-
-source("util.R")
+# library(dplyr)
+# library(sf)
+# library(sp)
+#
+# source("util.R")
 
 prep_shapefile <- function(
   shp_path,
@@ -17,11 +17,11 @@ prep_shapefile <- function(
   precincts$precinct <- get_precinct_id(precincts)
   precincts$ward <- get_ward_from_precinct(precincts$precinct)
 
-  wards <- precincts %>% 
-    group_by(ward) %>% 
+  wards <- precincts %>%
+    group_by(ward) %>%
     summarise(geometry=st_union(geometry))
   wards <- remove_holes(wards)
-  
+
   saveRDS(precincts, file = paste0(save_dir, '/', save_precinct))
   saveRDS(wards, file = paste0(save_dir, '/', save_wards))
 }
@@ -30,7 +30,7 @@ prep_shapefile <- function(
 remove_holes <- function(shp){
   sp <- as(shp, "Spatial")
   sp@polygons <- sapply(
-    sp@polygons, 
+    sp@polygons,
     function(p){
       p_Polygons <- list()
       for(P in p@Polygons){
@@ -45,7 +45,7 @@ remove_holes <- function(shp){
   ## I don't know why this hack is necessary for Chicago...
   return(st_as_sf(sp[1:nrow(sp),]))
 }
-  
+
 
 
 

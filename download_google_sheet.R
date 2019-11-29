@@ -2,6 +2,7 @@ library(gsheet)
 library(dplyr)
 library(lubridate)
 
+asnum <- function(x) as.numeric(as.character(x))
 
 download_google_sheet <- function(
   config,
@@ -39,7 +40,8 @@ download_google_sheet <- function(
     mutate(
       ward = sprintf("%02d", asnum(ward)),
       div = sprintf("%02d", asnum(div)),
-      precinct=paste0(ward,div)
+      precinct=paste0(ward,div),
+      obs=asnum(obs)
     ) %>%
     select(timestamp, row_number, ward, div, precinct, time, obs)
   

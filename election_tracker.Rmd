@@ -17,28 +17,28 @@ table, td, th {
 
 </style>
 
-[![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/icon.png){width=15%}
-![](`r if(dir.exists("images")) paste0(getwd(),"/") else ""`images/logo.png){width=50%}](https://sixtysixwards.com)
+[![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/icon.png){width=15%}
+![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/logo.png){width=50%}](https://sixtysixwards.com)
 
 ```{r setup, include=FALSE, out.width='80%'}
 library(dplyr)
 library(stargazer)
 
-source("config.R")
-source("../util.R", chdir=TRUE)
-source("../generate_plots.R", chdir=TRUE)
+source(add_election_path("config.R"))
+source("util.R")
+source("generate_plots.R")
 
 config <- extend_config(config)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
 
-params <- readRDS("outputs/params.Rds")
-bs <- readRDS("outputs/bootstrap.Rds")
+params <- readRDS(output_file("params.Rds"))
+bs <- readRDS(output_file("bootstrap.Rds"))
 turnout_ci <- tail(bs$bootstrap_ci, 1)
 
 get_ward <- config$get_ward_from_precinct
 
-raw_data <- readRDS("outputs/raw_data.Rds")
+raw_data <- readRDS(output_file("raw_data.Rds"))
 raw_data <- raw_data %>% mutate(ward = config$get_ward(precinct))
 
 current_time <- max(bs$single_result@time_df$time_of_day)
@@ -63,7 +63,7 @@ precinct_turnout <- bs$single_result@full_predictions %>%
 
 write.csv(
   precinct_turnout, 
-  file=sprintf("outputs/precinct_turnout_%s.csv", config$city_filename), 
+  file=output_file(sprintf("precinct_turnout_%s.csv", config$city_filename)), 
   row.names=FALSE
 )
 
@@ -80,7 +80,7 @@ ward_ci <- bs$bootstrap_topline %>%
     turnout_median = quantile(turnout, 0.5)
   )
 
-wards <- readRDS("data/wards.Rds")
+wards <- readRDS(add_election_path("data/wards.Rds"))
 wards <- wards %>% 
   left_join(ward_turnout) %>%
   left_join(ward_ci)
@@ -96,7 +96,7 @@ if("mail_in_text" %in% names(config)){
 ```
 # Live `r substr(election_ds, 1, 4)` Election Turnout Tracker
 
-Welcome to the [`r site_name`](`r site_link`) turnout tracker! 
+Welcome to the [`r site_name`](`r site_link`) Turnout Tracker! 
 Voters across `r city` are sharing their turnout to support citizen science. 
 
 > First, vote! Then, share your `r precinct_name` and Voter Number at `r config$submission_bitly`.
@@ -106,12 +106,11 @@ Voters across `r city` are sharing their turnout to support citizen science.
 ```{r turnout, echo=FALSE, out.width='100%'}
 p <- turnout_plot(
   bs,
-  raw_data,
   config
 )
 
 turnout_plot_file <- sprintf(
-  "outputs/turnout_plot_%s.png",
+  output_file("turnout_plot_%s.png"),
   format(Sys.time(), "%H_%M_%S")
 )
 ggsave(p, file = turnout_plot_file)
@@ -130,7 +129,7 @@ gg_wards_predicted(wards, current_time, config)
 
 p <- gg_wards_relative(wards, current_time, config)
 relative_map_file <- sprintf(
-  "outputs/relative_map_%s.png",
+  output_file("relative_map_%s.png"),
   format(Sys.time(), "%H_%M_%S")
 )
 ggsave(p, file = relative_map_file)

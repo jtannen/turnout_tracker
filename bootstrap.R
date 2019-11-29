@@ -23,8 +23,6 @@ fit_and_bootstrap <- function(
   
   single_result <- process_results(
     single_fit, 
-    raw_data,
-    params,
     election_config=election_config,
     plots = FALSE, 
     save_results = FALSE,
@@ -32,11 +30,7 @@ fit_and_bootstrap <- function(
   )
   
   if(verbose){
-    print(paste(
-      "Raw Result:", 
-      exp(tail(single_result@time_df$log_fit, n=1)) * 
-        sum(exp(single_result@precinct_df$re_fit))
-    ))
+    print(sprintf("Raw Result: %s", predict_topline(single_result)))
   }  
     
   for(i in 1:n_boot){
@@ -52,8 +46,6 @@ fit_and_bootstrap <- function(
     
     bs_list[[i]] <- process_results(
       bs_fit,
-      bs_data,
-      params=params,
       election_config=election_config,
       plots = FALSE, 
       save_results = FALSE,
@@ -61,10 +53,10 @@ fit_and_bootstrap <- function(
     )
     
     if(verbose){
-      print(paste(
+      print(sprintf(
+        "%s: %s",
         i, 
-        exp(tail(bs_list[[i]]@time_df$log_fit, n=1)) * 
-          sum(exp(bs_list[[i]]@precinct_df$re_fit))
+        predict_topline(bs_list[[i]])
       ))
     }
   }
@@ -121,6 +113,7 @@ fit_and_bootstrap <- function(
   
   return(
     list(
+      single_fit=single_fit,
       single_result=single_result,
       bootstrap_df=bootstrap_df,
       bootstrap_topline=bootstrap_topline,
@@ -169,28 +162,26 @@ hist_bootstrap <- function(bs){
 
 turnout_plot <- function(
   bs,
-  raw_data,
   election_config
 ){
-  
   config <- extend_config(election_config)
   ref_turnout <- config$ref_turnout
   
-  single_fit <- bs$single_result
-  time_df <- single_fit@time_df 
-  precinct_df <- single_fit@precinct_df
+  single_fit <- bs$single_fit
+  single_result <- bs$single_result
+  time_df <- single_result@time_df 
+  precinct_df <- single_result@precinct_df
   
-  resid <- raw_data %>%
-    mutate(time_of_day = config$base_time + minutes(minute)) %>%
+  resid <- data.frame(
+    time_of_day = config$base_time + minutes(single_fit@raw_data$minute),
+    resid = calc_resid(single_fit, winsorize = TRUE)
+  ) %>%
     left_join(
       time_df %>% 
         select(time_of_day, log_fit) %>%
         rename(time_fit = log_fit) %>%
-        mutate(total_turnout = bs$bootstrap_ci$turnout_500)
-    ) %>%
-    mutate(
-      re_fit = precinct_df$re_fit[precinct_num],
-      resid = log_obs - time_fit - re_fit
+        mutate(total_turnout = bs$bootstrap_ci$turnout_500),
+      by="time_of_day"
     )
   
   ggplot(
