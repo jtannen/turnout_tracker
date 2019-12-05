@@ -15,7 +15,7 @@ source("fit_submissions.R", chdir=TRUE)
 source("precalc_params.R", chdir=TRUE)
 
 config_dir <- function(election){
-  sprintf("%s/configs/%s", TRACKER_DIR, election)
+  sprintf("%s/elections/%s", TRACKER_DIR, election)
 }
 
 set.seed(215)
