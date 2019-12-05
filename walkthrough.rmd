@@ -154,6 +154,6 @@ print(gg_turnout)
 ```
 
 ## On Election Day
-There are a few specifics that need to be handled on election day. The file `run_all.R` does four things: (a) download the google data, (b) calculate the bootstrapped estimate, (c) compiles `election_tracker.Rmd`, which creates the markdown report, (d) pushes the html to github using `upload_git.bat`, and then (e) maybe tweets an update.
+There are a few specifics that need to be handled on election day. The file `run_all.R` does five things: (a) download the google data, (b) calculate the bootstrapped estimate, (c) compiles `election_tracker.Rmd`, which creates the markdown report, (d) pushes the html to github using `upload_git.bat`, and then (e) maybe tweets an update.
 
 On election day, you just run `run_all.R` and let the script loop.
