@@ -230,13 +230,15 @@ plot_election_svd_dim <- function(params, k, config){
 } 
 
 
-diagnostics <- function(params, precinct_sf, config){
+diagnostics <- function(params, precinct_sf, config, pause=TRUE){
   if(!is(params, "modelParams")) stop("params must be of class modelParams")
   validate_precinct_sf(precinct_sf, params)
   
   print("Plotting Diagnostics...")
-
-  pause <- function() invisible(readline(prompt = "Press <Enter> to continue..."))
+  
+  if(pause){
+    pause <- function() invisible(readline(prompt = "Press <Enter> to continue..."))
+  } else pause <- function() return()
   
   map_precinct_fe(params, precinct_sf) %>% print
   pause()

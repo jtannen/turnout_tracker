@@ -424,8 +424,10 @@ process_results <- function(
   calc_ses = TRUE,
   fake_data = NULL,
   save_dir = ".",
-  verbose=TRUE
+  verbose=TRUE,
+  pause=TRUE
 ){
+
   raw_data <- model_fit@raw_data
   params <- model_fit@params
   
@@ -434,6 +436,10 @@ process_results <- function(
   
   loess_fit <- model_fit@loess_fit[[1]]
   precinct_re_fit <- model_fit@precinct_re_fit
+  
+  if(pause){
+    pause <- function() invisible(readline(prompt = "Press <Enter> to continue..."))
+  } else pause <- function() return()
   
   printv <- function(x) if(verbose) print(x)
   

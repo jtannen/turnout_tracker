@@ -1,8 +1,6 @@
-# library(dplyr)
-# library(sf)
-# library(sp)
-#
-# source("util.R")
+library(dplyr)
+library(sf)
+library(sp)
 
 prep_shapefile <- function(
   shp_path,

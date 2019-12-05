@@ -126,10 +126,11 @@ fit_and_bootstrap <- function(
 
 
 hist_bootstrap <- function(bs){
-  single_turnout <- bs$single_result$time_df %>% 
+  sum_exp_re <- sum(exp(bs$single_fit@precinct_re_fit))
+  single_turnout <- bs$single_result@time_df %>% 
     tail(1) %>% 
     with(
-      exp(log_fit) * sum(exp(fit$precinct_df$re_fit))
+      exp(log_fit) * sum_exp_re
     )
   
   ggplot(

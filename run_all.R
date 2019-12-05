@@ -2,9 +2,10 @@
 ELECTION <- "phila_201911"
 
 TRACKER_FOLDER <- "C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/"
-CONFIG_FOLDER <- sprintf("%s/configs/%s", TRACKER_FOLDER, ELECTION)
+CONFIG_FOLDER <- sprintf("%s/elections/%s", TRACKER_FOLDER, ELECTION)
 
 setwd(TRACKER_FOLDER)
+
 add_election_path <- function(file){
   sprintf("%s/%s", CONFIG_FOLDER, file)
 }
@@ -23,31 +24,34 @@ source("tweets.R")
 library(rmarkdown)
 library(tidyverse)
 
-# #######################
-# ## BEFORE ELECTION DAY
-# #######################
-# source("prep_shapefiles.R")
-# prep_shapefile(
-#   add_election_path(config$precinct_shp_path),
-#   config$get_precinct_id,
-#   config$get_ward_from_precinct
-# )
-# 
-# ## Precompute the historic parameters
-# source("precalc_params.R")
-# 
-# df <- read_csv(add_election_path(config$turnout_df_path), col_types = "ccd")
-# 
-# precincts <- readRDS(add_election_path("data/precincts.Rds"))
-# wards <- readRDS(add_election_path("data/wards.Rds"))
-# 
-# params <- calc_params(
-#   turnout_df=df,
-#   n_svd=3
-# )
-# diagnostics(params, precincts, config)
-# 
-# save_with_backup(params, stem="params", dir=OUTPUT_DIR)
+#######################
+## BEFORE ELECTION DAY
+#######################
+
+if(FALSE){
+  source("prep_shapefiles.R")
+  prep_shapefile(
+    add_election_path(config$precinct_shp_path),
+    config$get_precinct_id,
+    config$get_ward_from_precinct,
+    save_dir = add_election_path("data")
+  )
+  
+  precincts <- readRDS(add_election_path("data/precincts.Rds"))
+  
+  ## Precompute the historic parameters
+  source("precalc_params.R")
+  
+  df <- read_csv(add_election_path(config$turnout_df_path), col_types = "ccd")
+  
+  params <- calc_params(
+    turnout_df=df,
+    n_svd=3
+  )
+  diagnostics(params, precincts, config)
+  
+  save_with_backup(params, stem="params", dir=OUTPUT_DIR)
+}
 
 #####################
 ## ON ELECTION DAY
@@ -55,10 +59,11 @@ library(tidyverse)
 
 params <- readRDS(output_file("params.Rds"))
 
-# USE_GOOGLE_DATA <- TRUE
-
-# IS_TEST <- TRUE
-# IS_TEST <- FALSE
+if(FALSE){
+  USE_GOOGLE_DATA <- TRUE
+  IS_TEST <- TRUE
+  IS_TEST <- FALSE
+}
 
 if(
   !exists("USE_GOOGLE_DATA") |
@@ -66,9 +71,7 @@ if(
 ) stop("must specify values first!")
 
 SHOULD_TWEET <- TRUE
-reply_tweet_id <- 1191713446808686598
-time_of_last_tweet <- NA
-
+last_tweet <- Tweet(id = 1191713446808686598, time=NA)
 
 run_iter <- 0
 while(TRUE){
@@ -134,27 +137,14 @@ while(TRUE){
   system("upload_git.bat")
 
   if(SHOULD_TWEET){
-    is_time_to_tweet <- is.na(time_of_last_tweet) | (
-      (ymd_hms(current_time) - ymd_hms(time_of_last_tweet)) >= minutes(20)
+    ## current_time et al are defined in election_tracker.Rmd
+    tweet_if_time(
+      last_tweet, 
+      current_time,
+      turnout_ci,
+      config,
+      plot_files=c(turnout_plot_file, relative_map_file)
     )
-    is_time_to_tweet <- TRUE
-
-    if(is_time_to_tweet){
-      reply_tweet_id <- tweet_update(
-        reply_tweet_id,
-        turnout_ci,
-        current_time,
-        config,
-        c(turnout_plot_file, relative_map_file)
-      )
-      time_of_last_tweet <- current_time
-    } else {
-      print(sprintf(
-        "Not Tweeting: current time: %s, last tweet: %s", 
-        current_time, 
-        time_of_last_tweet
-      ))
-    }
   }
 }
 
