@@ -1,2 +1,3 @@
 generate_twitter_token.R
 elections/*/outputs/backup/*
+*/bootstrap.Rds
