@@ -6,4 +6,3 @@ elections/*/outputs/params.Rda
 elections/*/outputs/params.Rds
 elections/*/outputs/phila_params.Rda
 git_list_large_files.sh
-tmp_file.sh
