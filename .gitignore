@@ -2,3 +2,6 @@ generate_twitter_token.R
 elections/*/outputs/backup/*
 */bootstrap.Rds
 */bootstrap_*.Rds
+elections/*/outputs/params.Rda
+elections/*/outputs/params.Rds
+elections/*/outputs/phila_params.Rda
