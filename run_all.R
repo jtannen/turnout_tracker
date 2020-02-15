@@ -14,6 +14,7 @@ OUTPUT_DIR <- add_election_path("outputs")
 output_file <- function(file) sprintf("%s/%s", OUTPUT_DIR, file)
 
 source(add_election_path("config.R"))
+source('load_data.R')
 source("util_tracker.R")
 source("download_google_sheet.R")
 source("fit_submissions.R")
@@ -71,7 +72,7 @@ if(
 ) stop("must specify values first!")
 
 SHOULD_TWEET <- TRUE
-last_tweet <- Tweet(id = 1191713446808686598, time=NA)
+last_tweet <- Tweet(id = 1191713446808686598, time='NA')
 
 run_iter <- 0
 while(TRUE){

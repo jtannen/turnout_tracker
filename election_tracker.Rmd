@@ -27,6 +27,7 @@ library(stargazer)
 source(add_election_path("config.R"))
 source("util.R")
 source("generate_plots.R")
+source("bootstrap.R")
 
 config <- extend_config(config)
 
@@ -34,32 +35,32 @@ knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
 
 params <- readRDS(output_file("params.Rds"))
 bs <- readRDS(output_file("bootstrap.Rds"))
-turnout_ci <- tail(bs$bootstrap_ci, 1)
 
 get_ward <- config$get_ward_from_precinct
 
-raw_data <- readRDS(output_file("raw_data.Rds"))
-raw_data <- raw_data %>% mutate(ward = config$get_ward(precinct))
-
-current_time <- max(bs$single_result@time_df$time_of_day)
-ward_turnout <- bs$single_result@full_predictions %>%
-  mutate(ward = get_ward(precinct)) %>%
-  filter(time_of_day == current_time) %>%
-  group_by(ward) %>%
-  summarise(
-    turnout = sum(prediction),
-    sum_fe = sum(exp(precinct_fe)),
-    re_over_fe = sum(exp(re_fit)) / sum(exp(precinct_fe))
+raw_data <- readRDS(output_file("raw_data.Rds")) %>% 
+  mutate(
+    ward=get_ward(precinct),
+    time_of_day=config$base_time + minutes(minute)
   )
 
-precinct_turnout <- bs$single_result@full_predictions %>%
-  filter(time_of_day == current_time) %>%
-  group_by(precinct) %>%
-  summarise(
-    turnout = sum(prediction),
-    sum_fe = sum(exp(precinct_fe)),
-    re_over_fe = sum(exp(re_fit)) / sum(exp(precinct_fe))
-  )
+current_time <- max(bs@raw_result@time_df$time_of_day)
+
+turnout_df <- get_ci_from_bs(bs, predict_topline, keys="time_of_day")
+current_turnout <- filter_to_eod(turnout_df)
+
+ward_turnout <- get_ci_from_bs(
+  bs, 
+  predict_ward_turnout, 
+  get_ward=get_ward,
+  keys="ward"
+)
+
+precinct_turnout <- get_ci_from_bs(
+  bs, 
+  predict_precinct_eod,
+  keys="precinct"
+)
 
 write.csv(
   precinct_turnout, 
@@ -67,23 +68,8 @@ write.csv(
   row.names=FALSE
 )
 
-ward_ci <- bs$bootstrap_topline %>%
-  select(log_fit, sim) %>%
-  left_join(bs$ranef_df) %>%
-  mutate(ward = get_ward(precinct)) %>%
-  group_by(ward, sim) %>%
-  summarise(turnout = sum(exp(log_fit + re_fit))) %>%
-  group_by(ward) %>%
-  summarise(
-    turnout_low = quantile(turnout, 0.025),
-    turnout_high = quantile(turnout, 0.975),
-    turnout_median = quantile(turnout, 0.5)
-  )
-
 wards <- readRDS(add_election_path("data/wards.Rds"))
-wards <- wards %>% 
-  left_join(ward_turnout) %>%
-  left_join(ward_ci)
+wards <- wards %>% left_join(ward_turnout)
 
 ## for text reference
 attach(config)
@@ -92,6 +78,15 @@ if("mail_in_text" %in% names(config)){
   mail_in_text <- config$mail_in_text
 }else{
   mail_in_text <- ""
+}
+
+save_plot <- function(p, stem){
+  file <- sprintf(
+    output_file("%s_%s.png"),
+    stem,
+    format(Sys.time(), "%H_%M_%S")
+  )
+  ggsave(p, file=file)
 }
 ```
 # Live `r substr(election_ds, 1, 4)` Election Turnout Tracker
@@ -104,21 +99,12 @@ Voters across `r city` are sharing their turnout to support citizen science.
 ## Live Results
 
 ```{r turnout, echo=FALSE, out.width='100%'}
-p <- turnout_plot(
-  bs,
-  config
-)
-
-turnout_plot_file <- sprintf(
-  output_file("turnout_plot_%s.png"),
-  format(Sys.time(), "%H_%M_%S")
-)
-ggsave(p, file = turnout_plot_file)
-
-p
+tp <- turnout_plot(bs, raw_data, config)
+save_plot(tp, "turnout")
+plotly::ggplotly(tp)
 ```
 
-As of `r strip_leading_zero(format(current_time, "%I:%M"))`, `r scales::comma(nrow(raw_data))` voters in `r length(unique(raw_data$ward))` wards have [shared their voter number](`r submission_bitly`). I estimate that <b>`r scales::comma(round(turnout_ci$turnout_500))`</b> people have voted across the city (95% Confidence Interval: `r scales::comma(round(turnout_ci$turnout_025))` - `r scales::comma(round(turnout_ci$turnout_975))`). `r mail_in_text`
+As of `r strip_leading_zero(format(current_time, "%I:%M %p"))`, `r scales::comma(nrow(raw_data))` voters in `r length(unique(raw_data$ward))` wards have [shared their voter number](`r submission_bitly`). I estimate that <b>`r scales::comma(round(current_turnout$turnout))`</b> people have voted across the city (95% Confidence Interval: `r scales::comma(round(current_turnout$p025))` - `r scales::comma(round(current_turnout$p975))`). `r mail_in_text`
 
 ## Maps
 I use historic correlations among `r precinct_name`s' turnout to estimate turnout in the `r precinct_name`s with no data yet. I simultaneously estimate (1) the overall city-wide turnout, (2) `r precinct_name`s' over-/under-performance, and (3) the city-wide time pattern of voting.
@@ -127,13 +113,9 @@ Here are the current estimates of turnout in each ward
 ```{r maps, echo=FALSE, out.width='100%'}
 gg_wards_predicted(wards, current_time, config)
 
-p <- gg_wards_relative(wards, current_time, config)
-relative_map_file <- sprintf(
-  output_file("relative_map_%s.png"),
-  format(Sys.time(), "%H_%M_%S")
-)
-ggsave(p, file = relative_map_file)
-p
+relmap <- gg_wards_relative(wards, current_time, config)
+save_plot(relmap, "relative_map")
+relmap
 
 # gg_wards_turnout_change(wards, prior_turnout)
 gg_wards_submissions(wards, raw_data, current_time, config)
@@ -149,11 +131,12 @@ gg_wards_labelled(wards)
 ## TODO ward-level CIs
 stargazer(
   ward_turnout %>% 
-    left_join(ward_ci) %>%
-    mutate(time_of_day=strip_leading_zero(format(current_time, "%I:%M"))) %>%
-    select(ward, time_of_day, turnout, turnout_high, turnout_low) %>%
+    mutate(
+      time_of_day=strip_leading_zero(format(current_time, "%I:%M %p"))
+    ) %>%
+    select(ward, time_of_day, turnout, turnout_p025, turnout_p975) %>%
     mutate_at(
-      vars(turnout, turnout_high, turnout_low),
+      vars(turnout, turnout_p025, turnout_p975),
       funs(round)
     ),
   type = "html",
@@ -168,13 +151,9 @@ stargazer(
 ```{r raw_data, results='asis'}
 stargazer(
   raw_data %>% 
-    mutate(
-      time = strip_leading_zero(
-        format(config$base_time + minutes(minute), "%I:%M")
-      )
-    ) %>%
-    select(time, precinct, obs) %>%
-    rename(`Time of Vote` = time, `Precinct`=precinct, `Voter Number` = obs), 
+    select(time_of_day, precinct, obs) %>%
+    mutate(time_of_day = format(time_of_day, "%I:%M %p")) %>%
+    rename(`Time of Vote` = time_of_day, `Precinct`=precinct, `Voter Number` = obs), 
   type = "html",
   title = "Submitted Data", 
   summary = FALSE,

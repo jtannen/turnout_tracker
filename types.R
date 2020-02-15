@@ -31,7 +31,7 @@ setClass(
   slots=c(
       precinct_df="data.frame",
       time_df="data.frame",
-      full_predictions="data.frame"
+      raw_data="data.frame"
   )
 )
 
@@ -131,21 +131,66 @@ print_resid <- function(model_fit){
 modelPredictions <- function(
   precinct_df,
   time_df,
-  full_predictions
+  raw_data
 ){
   new(
     "modelPredictions",
     precinct_df=precinct_df,
     time_df=time_df,
-    full_predictions=full_predictions
+    raw_data=raw_data
   )
 }
 
+filter_to_eod <- function(df){
+  df %>% 
+    ungroup() %>% 
+    filter(time_of_day == max(time_of_day))
+}
 
-predict_topline <- function(model_predictions, end_of_day=FALSE){
+predict_precinct_eod <- function(model_predictions){
+  exp_time_fit_eod <- model_predictions@time_df %>%
+    filter_to_eod() %>%
+    with(exp(log_fit))
+  
+  model_predictions@precinct_df %>%
+    mutate(turnout = exp(re_fit) * exp_time_fit_eod)
+}
+
+predict_topline <- function(model_predictions, eod=FALSE){
   sum_exp_divs <- sum(exp(model_predictions@precinct_df$re_fit))
-  exp_time_fit_eod <- exp(tail(model_predictions@time_df$log_fit, n=1))
-  return(sum_exp_divs * exp_time_fit_eod)
+  if(eod) { 
+    time_df <- filter_to_eod(model_predictions@time_df)
+  } else {
+    time_df <- model_predictions@time_df
+  }
+  time_df %>% 
+    mutate(turnout = exp(log_fit) * sum_exp_divs) %>%
+    select(time_of_day, turnout)
+}
+
+predict_turnout <- function(model_predictions, precinct, time_of_day){
+  data.frame(
+    precinct = precinct,
+    time_of_day = time_of_day
+  ) %>%
+    left_join(model_predictions@precinct_df) %>%
+    left_join(model_predictions@time_df) %>%
+    mutate(turnout = exp(log_fit + re_fit)) %>%
+    select(precinct, time_of_day, turnout)
+}
+
+predict_ward_turnout <- function(
+  model_predictions, 
+  get_ward = function(x) substr(x, 1, 2)
+){
+  predict_precinct_eod(model_predictions) %>%
+    mutate(ward = get_ward(precinct)) %>%
+    group_by(ward) %>%
+    summarise(
+      turnout = sum(turnout),
+      sum_fe = sum(exp(precinct_fe)),
+      re_over_fe = sum(exp(re_fit)) / sum(exp(precinct_fe))
+    ) %>% ungroup
 }
 
 

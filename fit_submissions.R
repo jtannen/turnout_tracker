@@ -14,148 +14,6 @@ source('types.R')
 WINSORIZE_RESID <- TRUE
 
 #######################
-## SET ELECTION PARAMS
-#######################
-
-load_google_data <- function(
-  election_config,
-  rds="outputs/google_download.Rds"
-){
-  validate_config(election_config)
-  config <- extend_config(election_config)
-  
-  raw_data <- readRDS(rds)
-  raw_data$obs <- asnum(raw_data$obs)
-  
-  raw_data <- raw_data %>% filter(
-    !is.na(obs) & 
-      !is.na(time) & 
-      !is.na(precinct)
-  )
-  
-  # filter obviously unreasonable raw_data
-  raw_data$obs[raw_data$obs == 0] <- 1
-  raw_data <- raw_data %>% filter(obs > 0 & obs <= 900) 
-  raw_data <- raw_data %>% filter(
-      (time >= config$base_time) &
-      (time <= (config$base_time + hours(config$end_hour - config$start_hour)))  
-  )
-
-  return(raw_data)
-}
-
-bimodal_cdf <- function(n_minutes){
-  0.5 * (pnorm(1:n_minutes, 100, 50) + pnorm(1:n_minutes, 400, 50))
-}
-
-generate_fake_data <- function(
-  params, 
-  election_config,
-  n_obs=500, 
-  true_pattern=bimodal_cdf,
-  frac_of_day=0.6,
-  sigma_noise=0.05
-){
-  validate_config(election_config)
-  config <- extend_config(election_config)
-  
-  election_fe_samp <- sample(params@election_fe$election_fe, 1)
-  precinct_re_samp <- mvrnorm(
-    1, 
-    params@precinct_fe$precinct_fe, 
-    params@precinct_cov
-  )
-  n_precincts <- length(precinct_re_samp)
-  
-  true_log_pattern <- log(true_pattern(config$n_minutes))
-  
-  fake_data <- data.frame(
-    precinct_num = sample(n_precincts, size = n_obs, replace = TRUE),
-    minute = sample(
-      round(config$n_minutes * frac_of_day), 
-      size = n_obs, 
-      replace = TRUE
-    ),
-    noise = rnorm(n_obs, sd=sigma_noise)
-  )
-  
-  fake_data$obs <- with(
-    fake_data,
-    exp(
-      election_fe_samp + 
-        precinct_re_samp[precinct_num] +
-        noise +
-        true_log_pattern[minute]
-    ) %>% round()
-  )  
-  
-  raw_data <- fake_data %>% 
-    mutate(
-      row_number = 1:n(),
-      precinct = params@precinct_fe$precinct[precinct_num],
-      time = as.character(config$base_time + minutes(minute))
-    ) %>%
-    dplyr::select(row_number, precinct, time, obs)
-  
-  ## valid final turnout since the pattern ends at 1
-  true_turnout <- sum(exp(election_fe_samp + precinct_re_samp))
-  
-  # print turnout  
-  curr_minutes <- max(fake_data$minute)
-  frac <- exp(true_log_pattern[curr_minutes])
-  print("True Turnout")
-  print(true_turnout * frac)
-  
-  return(
-    list(
-      raw_data=raw_data, 
-      election_fe_samp=election_fe_samp, 
-      precinct_re_samp=precinct_re_samp,
-      true_pattern=true_pattern,
-      true_turnout=true_turnout
-    )
-  )
-}
-
-
-load_data <- function(
-  use_google_data, 
-  election_config, 
-  params, 
-  google_rds="outputs/google_download.Rds"
-){
-  validate_config(election_config)
-  
-  if(use_google_data){
-    fake_data <- NULL
-    raw_data <- load_google_data(election_config, google_rds)
-  } else {
-    fake_data <- generate_fake_data(params, election_config)
-    raw_data <- fake_data$raw_data
-  }  
-
-  raw_data$obs[raw_data$obs == 0] <- 1
-  raw_data$log_obs <- log(raw_data$obs)
-  raw_data$precinct_num <- match(
-    raw_data$precinct,
-    params@precinct_fe$precinct
-  )
-  
-  raw_data <- raw_data %>% filter(!is.na(precinct_num))
-
-  config <- extend_config(election_config)
-  
-  dtime <- ymd_hms(raw_data$time, tz=election_config$timezone) - config$base_time
-  units(dtime) <- "mins"
-  raw_data$minute <- as.numeric(dtime)
-  raw_data$minute[raw_data$minute == 0] <- 1
-  raw_data$time <- NULL
-  
-  return(list(fake_data=fake_data, raw_data=raw_data))
-}
-
-
-#######################
 ## Analyze
 #######################
 
@@ -198,6 +56,7 @@ optimize_precinct_re_of_model <- function(model_fit){
     resid + precinct_re_fit[precinct_num],
     n_precincts
   )
+  
   n_obs_p <- x_tab$n_obs_p 
   x_sum_p <- x_tab$x_sum_p
   
@@ -278,71 +137,57 @@ precomp_re_first_mat <- function(
 
 get_loess_params <- function(n_obs){
   if(n_obs < 50){
-    loess_degree <- 1
-    loess_span <- 1
+    degree <- 1
+    span <- 1
   }
   if(n_obs >= 50 & n_obs < 500){
-    loess_degree <- 1
-    loess_span <- 0.3
+    degree <- 1
+    span <- 0.3
   }
   if(n_obs >= 500){
-    loess_degree <- 2
-    loess_span <- 0.3
+    degree <- 2
+    span <- 0.3
   }
-  return(list(loess_degree=loess_degree, loess_span=loess_span))
+  return(list(degree=degree, span=span))
 }
 
 optimize_loess <- function(
   model_fit, 
-  loess_span, 
-  loess_degree
+  span, 
+  degree
 ){
   resid <- calc_resid(model_fit, winsorize=WINSORIZE_RESID)
   loess_pred_old <- predict_loess_obs(model_fit)
   minute_obs <- model_fit@raw_data$minute
   
+  params <- get_loess_params(length(minute_obs))
+
   model_fit@loess_fit[[1]] <- loess(
     x ~ minute, 
     data.frame(
       x=resid + loess_pred_old,
       minute=minute_obs
     ),
-    span = loess_span,
-    degree = loess_degree
+    span=params$span,
+    degree=params$degree
   )
 
   return(model_fit)
 }
 
-update_resid <- function(mean_abs_resid, current_fit, verbose){
-  mean_old <- mean_abs_resid
-  mean_new <- mean(abs(calc_resid(current_fit)))
-  if(verbose){
-    print(sprintf("old Mean Abs Resid: %s", mean_old))
-    print(sprintf("new Mean Abs Resid: %s", mean_new))
-  }
-  return(mean_new)
+mean_abs_resid <- function(current_fit){
+  mean(abs(calc_resid(current_fit)))
 }
 
-
-fit_em_model <- function(
+initialize_model_fit <- function(
   raw_data, 
-  params,
-  election_config,
-  sigma_noise=0.1, 
-  tol=1e-10,
-  verbose=TRUE,
-  use_inverse=TRUE
+  params, 
+  config, 
+  sigma_noise,
+  use_inverse, 
+  verbose
 ){
-  
-  ## TODO: should this use mgcv::gam?
-  validate_config(election_config)
-  config <- extend_config(election_config)
-
   n_obs <- nrow(raw_data)
-  loess_params <- get_loess_params(n_obs)
-  loess_degree <- loess_params$loess_degree
-  loess_span <- loess_params$loess_span
   
   ## Precomp values
   x_tab <- tabulate_x(
@@ -363,7 +208,7 @@ fit_em_model <- function(
       n_obs_p, params, sigma_noise
     )
   }
-
+  
   if(verbose) print("Sampling")
   ## initialize  
   precinct_re_fit <- rep(0, params@n_precincts)
@@ -372,7 +217,7 @@ fit_em_model <- function(
   ## TODO generalize beyond loess, create "predict_time()" function instead
   dummy_loess <- loess(x ~ minute, data.frame(x=0, minute=raw_data$minute))
   
-  current_fit <- modelFit(
+  modelFit(
     precinct_re_fit=precinct_re_fit,
     loess_fit=dummy_loess,
     first_mat_stored=first_mat_stored,
@@ -381,33 +226,54 @@ fit_em_model <- function(
     raw_data=raw_data,
     params=params
   )
+}
 
+
+fit_em_model <- function(
+  raw_data, 
+  params,
+  election_config,
+  sigma_noise=0.1, 
+  tol=1e-10,
+  verbose=TRUE,
+  use_inverse=TRUE
+){
+  
+  ## TODO: should this use mgcv::gam?
+  validate_config(election_config)
+  config <- extend_config(election_config)
+  
+  current_fit <- initialize_model_fit(
+    raw_data, params, config, sigma_noise, use_inverse, verbose
+  )
   loess_predicted_eod <- 0
-  mean_abs_resid <- update_resid(0, current_fit, verbose=F)
+  
+  maybe_print <- function(x) if(verbose) print(x)
+  maybe_print_resid <- function(current_fit){
+      maybe_print(sprintf("Mean Resid: %s", mean_abs_resid(current_fit)))
+  }
 
   continue <- TRUE
   loop_no <- 0
   
   while(continue){
-    if(verbose) print(paste("Iter ", loop_no))
+    maybe_print(paste("Iter ", loop_no))
     loop_no <- loop_no + 1
     
     current_fit %<>% optimize_precinct_re_of_model()
-    mean_abs_resid %<>% update_resid(current_fit, verbose)
+    maybe_print_resid(current_fit)
       
     current_fit %<>% optimize_loess(
       loess_span,
       loess_degree
     )    
-    mean_abs_resid %<>% update_resid(current_fit, verbose)
+    maybe_print_resid(current_fit)
     
     prior_predicted_eod <- loess_predicted_eod
     loess_predicted_eod <- predict_loess_obs(current_fit, end_of_day=TRUE)
     
-    if(verbose){
-      print(paste0("Final Turnout: ", loess_predicted_eod))
-      print(paste0("Abs Change: ", abs(loess_predicted_eod - prior_predicted_eod)))
-    }
+    maybe_print(paste0("Final Turnout: ", loess_predicted_eod))
+    maybe_print(paste0("Abs Change: ", abs(loess_predicted_eod - prior_predicted_eod)))
     
     continue <- abs(loess_predicted_eod - prior_predicted_eod) > (tol * prior_predicted_eod)
   }
@@ -543,22 +409,13 @@ process_results <- function(
     mutate(
       time_of_day = config$base_time + minutes(minute)
     )
-
-  printv("full_predictions")
-  full_predictions <- expand.grid(
-    precinct=params@precinct_fe$precinct,
-    time_of_day=time_df$time_of_day
-  ) %>%
-    left_join(precinct_df, by="precinct") %>%
-    left_join(time_df, by="time_of_day") %>%
-    mutate(
-      prediction = exp(re_fit + log_fit)
-    )
+  
+  raw_data$resid <- calc_resid(model_fit, winsorize=WINSORIZE_RESID)
 
   model_predictions <- modelPredictions(
     precinct_df=precinct_df,
     time_df=time_df,
-    full_predictions=full_predictions
+    raw_data=raw_data
   )
   
   if(save_results){
@@ -574,6 +431,20 @@ process_results <- function(
   return(model_predictions)
 }
 
+
+get_precinct_time_turnout <- function(precinct_df, time_df){
+  ## preserves sim column if exists
+  full_predictions <- expand.grid(
+    precinct=unique(precinct_df$precinct),
+    time_of_day=unique(time_df$time_of_day)
+  ) %>%
+    left_join(precinct_df) %>%
+    left_join(time_df) %>%
+    mutate(
+      turnout = exp(re_fit + log_fit)
+    )
+  return(full_predictions)
+}
 
 if(FALSE){
   ## NO LONGER WORKS WITH NEW TYPES

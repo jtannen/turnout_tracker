@@ -9,5 +9,6 @@ test_files <- list.files(
 )
 
 for(file in test_files){
+  print(file)
   source(file, chdir=TRUE)
 }
