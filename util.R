@@ -3,6 +3,9 @@ library(colorspace)
 
 asnum <- function(x) as.numeric(as.character(x))
 
+strip_leading_zero <- function(x) gsub("^(0|\\s)+", "", x)
+pretty_time <- function(x) strip_leading_zero(format(x, "%I:%M %p"))
+
 safe_load <- function(file){
   e <- new.env()
   load(file, envir = e)

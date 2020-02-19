@@ -18,8 +18,7 @@ setClass(
   slots = c(
     precinct_re_fit="numeric", 
     loess_fit="list",  #loess class doesn't seem to work, hack is wrap it in a list 
-    first_mat_stored="Matrix",
-    first_mat_is_inv="logical",
+    Sigma_inv_plus_N="Matrix",
     sigma_noise="numeric",
     raw_data="data.frame",
     params="modelParams"
@@ -58,8 +57,7 @@ modelParams <- function(
 modelFit <- function(
   precinct_re_fit, 
   loess_fit, 
-  first_mat_stored,
-  first_mat_is_inv,
+  Sigma_inv_plus_N,
   sigma_noise,
   raw_data,
   params
@@ -68,8 +66,7 @@ modelFit <- function(
     "modelFit",
     precinct_re_fit=precinct_re_fit, 
     loess_fit=list(loess_fit), 
-    first_mat_stored=first_mat_stored,
-    first_mat_is_inv=first_mat_is_inv,
+    Sigma_inv_plus_N=Sigma_inv_plus_N,
     sigma_noise=sigma_noise,
     raw_data=raw_data,
     params=params

@@ -48,8 +48,7 @@ optimize_precinct_re_of_model <- function(model_fit){
   precinct_fe <- model_fit@params@precinct_fe$precinct_fe
   precinct_cov_inv <- model_fit@params@precinct_cov_inv
   sigma_noise <- model_fit@sigma_noise
-  first_mat_stored <- model_fit@first_mat_stored
-  first_mat_is_inv <- model_fit@first_mat_is_inv
+  Sigma_inv_plus_N <- model_fit@Sigma_inv_plus_N
   
   x_tab <- tabulate_x(
     precinct_num,
@@ -66,8 +65,7 @@ optimize_precinct_re_of_model <- function(model_fit){
     n_obs=n_obs_p,
     x_sum=x_sum_p,
     sigma_noise=sigma_noise,
-    first_mat=first_mat_stored,
-    first_mat_is_inv=first_mat_is_inv
+    Sigma_inv_plus_N=Sigma_inv_plus_N
   )
   
   return(model_fit)
@@ -79,19 +77,14 @@ optimize_precinct_re <- function(
   n_obs,
   x_sum,
   sigma_noise,
-  first_mat,
-  first_mat_is_inv = FALSE
+  Sigma_inv_plus_N
 ){
   mu_plus_x <- sigma_inv %*% mu + x_sum / sigma_noise^2
-  if(first_mat_is_inv){
-    new_mu <- first_mat %*% mu_plus_x
-  }else{
-    new_mu <- solve(first_mat, mu_plus_x)
-  }
+  new_mu <- solve(Sigma_inv_plus_N, mu_plus_x)
   return(as.vector(new_mu))
 }
 
-precomp_re_first_mat_inv <- function(
+precomp_Sigma_inv_plus_N_inv <- function(
   n_obs_p,
   params,
   sigma_noise
@@ -107,7 +100,7 @@ precomp_re_first_mat_inv <- function(
   )
   V <- t(U)
   
-  first_mat_stored <- Sigma - (
+  result <- Sigma - (
     Sigma %*% U %*% 
       solve(
         Diagonal(n = sum(n_obs_p > 0)) +
@@ -116,23 +109,23 @@ precomp_re_first_mat_inv <- function(
     V %*% Sigma
   )
   
-  return(first_mat_stored)
+  return(result)
 }
 
-precomp_re_first_mat <- function(
+calc_Sigma_inv_plus_N <- function(
   n_obs_p,
   params,
   sigma_noise
 ){
   ## Calculates (Sigma^-1 + N/s^2)
-  first_mat_stored <- 
+  Sigma_inv_plus_N <- 
     Diagonal(
       length(n_obs_p), 
       n_obs_p / sigma_noise^2 
     ) + 
     params@precinct_cov_inv
 
-  return(first_mat_stored)
+  return(Sigma_inv_plus_N)
 }
 
 get_loess_params <- function(n_obs){
@@ -184,7 +177,6 @@ initialize_model_fit <- function(
   params, 
   config, 
   sigma_noise,
-  use_inverse, 
   verbose
 ){
   n_obs <- nrow(raw_data)
@@ -199,15 +191,9 @@ initialize_model_fit <- function(
   x_sum_p <- x_tab$x_sum_p
   
   if(verbose) print("Precomputing Matrix")
-  if(use_inverse){
-    first_mat_stored <- precomp_re_first_mat_inv(
-      n_obs_p, params, sigma_noise
-    )
-  }else{
-    first_mat_stored <- precomp_re_first_mat(
-      n_obs_p, params, sigma_noise
-    )
-  }
+  Sigma_inv_plus_N <- calc_Sigma_inv_plus_N(
+    n_obs_p, params, sigma_noise
+  )
   
   if(verbose) print("Sampling")
   ## initialize  
@@ -220,9 +206,8 @@ initialize_model_fit <- function(
   modelFit(
     precinct_re_fit=precinct_re_fit,
     loess_fit=dummy_loess,
-    first_mat_stored=first_mat_stored,
+    Sigma_inv_plus_N=Sigma_inv_plus_N,
     sigma_noise=sigma_noise,
-    first_mat_is_inv=use_inverse,
     raw_data=raw_data,
     params=params
   )
@@ -235,8 +220,7 @@ fit_em_model <- function(
   election_config,
   sigma_noise=0.1, 
   tol=1e-10,
-  verbose=TRUE,
-  use_inverse=TRUE
+  verbose=TRUE
 ){
   
   ## TODO: should this use mgcv::gam?
@@ -244,7 +228,7 @@ fit_em_model <- function(
   config <- extend_config(election_config)
   
   current_fit <- initialize_model_fit(
-    raw_data, params, config, sigma_noise, use_inverse, verbose
+    raw_data, params, config, sigma_noise, verbose
   )
   loess_predicted_eod <- 0
   
@@ -458,7 +442,7 @@ if(FALSE){
   process_results(
     test_fit$precinct_re_fit,
     test_fit$loess_fit,
-    test_fit$first_mat_stored,
+    test_fit$Sigma_inv_plus_N,
     raw_data,
     test_fit$resid,
     params,

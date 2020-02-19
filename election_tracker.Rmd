@@ -17,8 +17,8 @@ table, td, th {
 
 </style>
 
-[![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/icon.png){width=15%}
-![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/logo.png){width=50%}](https://sixtysixwards.com)
+<!-- [![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/icon.png){width=15%} -->
+<!-- ![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/logo.png){width=50%}](https://sixtysixwards.com) -->
 
 ```{r setup, include=FALSE, out.width='80%'}
 library(dplyr)
@@ -101,24 +101,44 @@ Voters across `r city` are sharing their turnout to support citizen science.
 ```{r turnout, echo=FALSE, out.width='100%'}
 tp <- turnout_plot(bs, raw_data, config)
 save_plot(tp, "turnout")
-plotly::ggplotly(tp)
+tp
 ```
 
-As of `r strip_leading_zero(format(current_time, "%I:%M %p"))`, `r scales::comma(nrow(raw_data))` voters in `r length(unique(raw_data$ward))` wards have [shared their voter number](`r submission_bitly`). I estimate that <b>`r scales::comma(round(current_turnout$turnout))`</b> people have voted across the city (95% Confidence Interval: `r scales::comma(round(current_turnout$p025))` - `r scales::comma(round(current_turnout$p975))`). `r mail_in_text`
+As of `r pretty_time(current_time)`, `r scales::comma(nrow(raw_data))` voters in `r length(unique(raw_data$ward))` wards have [shared their voter number](`r submission_bitly`). I estimate that <b>`r scales::comma(round(current_turnout$turnout))`</b> people have voted across the city (95% Confidence Interval: `r scales::comma(round(current_turnout$p025))` - `r scales::comma(round(current_turnout$p975))`). `r mail_in_text`
 
 ## Maps
 I use historic correlations among `r precinct_name`s' turnout to estimate turnout in the `r precinct_name`s with no data yet. I simultaneously estimate (1) the overall city-wide turnout, (2) `r precinct_name`s' over-/under-performance, and (3) the city-wide time pattern of voting.
 
 Here are the current estimates of turnout in each ward
-```{r maps, echo=FALSE, out.width='100%'}
-gg_wards_predicted(wards, current_time, config)
 
-relmap <- gg_wards_relative(wards, current_time, config)
-save_plot(relmap, "relative_map")
-relmap
+### Turnout Predictions
+```{r turnout_map, echo=FALSE, fig.width=6, fig.asp=1.0, fig.align="center"}
+# turnout_map <- gg_wards_predicted(wards, current_time, config)
+turnout_map <- leaflet_wards_predicted(wards, raw_data, config, current_time)
+turnout_map
+```
 
-# gg_wards_turnout_change(wards, prior_turnout)
-gg_wards_submissions(wards, raw_data, current_time, config)
+### Change in Turnout
+```{r relative_map, echo=FALSE, fig.width=6, fig.asp=1.0, fig.align="center"}
+# rel_map <- gg_wards_relative(wards, current_time, config)
+# save_plot(relmap, "relative_map")
+rel_map <- leaflet_wards_change(
+  wards=wards, 
+  raw_data=raw_data, 
+  config=config, 
+  current_time=current_time
+)
+rel_map
+```
+
+### Submissions
+```{r ward_table, echo=FALSE, fig.width=6, fig.asp=1.0, fig.align="center"}
+leaflet_submissions(
+  wards=wards, 
+  raw_data=raw_data, 
+  config=config, 
+  current_time=current_time
+)
 ```
 
 ## Data Tables
@@ -128,11 +148,10 @@ gg_wards_labelled(wards)
 ```
 
 ```{r table, results='asis'}
-## TODO ward-level CIs
 stargazer(
   ward_turnout %>% 
     mutate(
-      time_of_day=strip_leading_zero(format(current_time, "%I:%M %p"))
+      time_of_day=pretty_time(current_time)
     ) %>%
     select(ward, time_of_day, turnout, turnout_p025, turnout_p975) %>%
     mutate_at(
@@ -152,8 +171,12 @@ stargazer(
 stargazer(
   raw_data %>% 
     select(time_of_day, precinct, obs) %>%
-    mutate(time_of_day = format(time_of_day, "%I:%M %p")) %>%
-    rename(`Time of Vote` = time_of_day, `Precinct`=precinct, `Voter Number` = obs), 
+    mutate(time_of_day = pretty_time(time_of_day)) %>%
+    rename(
+      `Time of Vote` = time_of_day, 
+      `Precinct`=precinct, 
+      `Voter Number` = obs
+    ), 
   type = "html",
   title = "Submitted Data", 
   summary = FALSE,

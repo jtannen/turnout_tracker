@@ -1,5 +1,9 @@
 library(magrittr)
 
+library(doParallel)
+cl <- makeCluster(2)
+registerDoParallel(cl)
+
 source("fit_submissions.R")
 
 setClass(
@@ -23,63 +27,17 @@ fit_and_bootstrap <- function(
   params,
   election_config,
   n_boot=40,
-  use_inverse=FALSE,
   verbose=TRUE
 ){
   diagnostic <- FALSE
 
   print("Raw Result")
-  raw_result <- fit_data(raw_data, params, election_config, use_inverse)
+  raw_result <- fit_data(raw_data, params, election_config)
 
-  if(verbose){
-    print(
-      sprintf(
-        "Raw Result: %s", 
-        scales::comma(predict_topline(raw_result, eod=TRUE)$turnout)
-      )
-    )
-  }  
-  
-  bs_list <- vector(mode = "list", length = n_boot)
-  for(i in 1:n_boot){
-    print(paste0("Boot ", i))
-    
-    bs_data <- raw_data %>% sample_frac(replace=TRUE) 
-    bs_result <- fit_data(
-      bs_data, params, election_config, use_inverse
-    )
-    
-    bs_result %<>% extend_time_for_censored_sims(raw_result=raw_result)
-    
-    bs_list[[i]] <- bs_result
-    
-    if(verbose){
-      print(sprintf(
-        "%s: %s", 
-        i, 
-        scales::comma(predict_topline(bs_result, eod=TRUE)$turnout)
-      ))
-    }
-  }
-  
-  # bind_dfs <- function(slot_name){
-  #   bind_rows(
-  #     lapply(bs_list, slot, slot_name),
-  #     .id="sim"
-  #   )
-  # }
-  # 
-  # time_sim_df <- bind_dfs("time_df")
-  # precinct_sim_df <- bind_dfs("precinct_df")
-  # 
-  # time_sim_df %<>% extend_time_for_censored_sims()
-  # time_sim_df %<>% add_sum_exp_re(precinct_sim_df) 
-  # 
-  # eod_ci <- time_sim_df %>% 
-  #   get_time_ci_from_df() %>% 
-  #   filter_to_eod()
-  # 
-  
+  # bs_list <- lapply(as.list(1:n_boot), bootstrap_once)
+  bs_list <- foreach(seed=1:n_boot) %do% 
+    bootstrap_once(seed, raw_data, raw_result, params, config)
+
   eod_ci <- get_ci(
     predict_topline,
     raw_result, 
@@ -99,12 +57,11 @@ fit_and_bootstrap <- function(
   )
 }
 
-fit_data <- function(data, params, config, use_inverse){
+fit_data <- function(data, params, config, verbose=TRUE){
   single_fit <- fit_em_model(
     data, 
     params, 
     verbose=FALSE, 
-    use_inverse=use_inverse, 
     election_config=config
   )
   
@@ -116,7 +73,28 @@ fit_data <- function(data, params, config, use_inverse){
     verbose=FALSE
   )
   
+  if(verbose){
+    print(
+      sprintf(
+        "Result: %s", 
+        scales::comma(predict_topline(single_result, eod=TRUE)$turnout)
+      )
+    )
+  }
+  
   return(single_result)
+}
+
+bootstrap_once <- function(seed, raw_data, raw_result, params, config){
+  print(sprintf("Bootstrap %s", seed))
+  set.seed(seed)
+  bs_data <- raw_data %>% sample_frac(replace=TRUE) 
+  bs_result <- fit_data(
+    bs_data, params, config
+  )
+  
+  bs_result %<>% extend_time_for_censored_sims(raw_result=raw_result)
+  return(bs_result)
 }
 
 get_ci <- function(func, raw_result, bs_results, keys, ...){

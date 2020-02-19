@@ -106,7 +106,6 @@ while(TRUE){
     params=params,
     election_config=config,
     n_boot=40,
-    use_inverse=FALSE,
     verbose=TRUE
   )
   save_with_backup(bs, stem="bootstrap", dir=OUTPUT_DIR)

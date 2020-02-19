@@ -4,7 +4,7 @@ library(readr)
 
 test_elections <- tribble(
   ~folder, ~turnout,
-  #"phila_201911", 306e3,
+  "phila_201911", 306e3,
   "phila_201905", 243e3,
   "phila_201811", 553e3,
   "phila_201805", 170e3
