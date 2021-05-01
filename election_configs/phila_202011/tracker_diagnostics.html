@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<meta charset="utf-8" />
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+
+<meta name="author" content="Jonathan Tannen" />
+
+<meta name="date" content="2020-11-14" />
+
+<title>tracker_debug</title>
+
+<script src="tracker_diagnostics_files/jquery-1.11.3/jquery.min.js"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link href="tracker_diagnostics_files/bootstrap-3.3.5/css/bootstrap.min.css" rel="stylesheet" />
+<script src="tracker_diagnostics_files/bootstrap-3.3.5/js/bootstrap.min.js"></script>
+<script src="tracker_diagnostics_files/bootstrap-3.3.5/shim/html5shiv.min.js"></script>
+<script src="tracker_diagnostics_files/bootstrap-3.3.5/shim/respond.min.js"></script>
+<script src="tracker_diagnostics_files/navigation-1.1/tabsets.js"></script>
+<link href="tracker_diagnostics_files/highlightjs-9.12.0/default.css" rel="stylesheet" />
+<script src="tracker_diagnostics_files/highlightjs-9.12.0/highlight.js"></script>
+
+<style type="text/css">code{white-space: pre;}</style>
+<style type="text/css">
+  pre:not([class]) {
+    background-color: white;
+  }
+</style>
+<script type="text/javascript">
+if (window.hljs) {
+  hljs.configure({languages: []});
+  hljs.initHighlightingOnLoad();
+  if (document.readyState && document.readyState === "complete") {
+    window.setTimeout(function() { hljs.initHighlighting(); }, 0);
+  }
+}
+</script>
+
+
+
+<style type="text/css">
+h1 {
+  font-size: 34px;
+}
+h1.title {
+  font-size: 38px;
+}
+h2 {
+  font-size: 30px;
+}
+h3 {
+  font-size: 24px;
+}
+h4 {
+  font-size: 18px;
+}
+h5 {
+  font-size: 16px;
+}
+h6 {
+  font-size: 12px;
+}
+.table th:not([align]) {
+  text-align: left;
+}
+</style>
+
+
+
+
+<style type = "text/css">
+.main-container {
+  max-width: 940px;
+  margin-left: auto;
+  margin-right: auto;
+}
+code {
+  color: inherit;
+  background-color: rgba(0, 0, 0, 0.04);
+}
+img {
+  max-width:100%;
+}
+.tabbed-pane {
+  padding-top: 12px;
+}
+.html-widget {
+  margin-bottom: 20px;
+}
+button.code-folding-btn:focus {
+  outline: none;
+}
+summary {
+  display: list-item;
+}
+</style>
+
+
+
+<!-- tabsets -->
+
+<style type="text/css">
+.tabset-dropdown > .nav-tabs {
+  display: inline-table;
+  max-height: 500px;
+  min-height: 44px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs > li.active:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li.active:before {
+  content: "&#xe258;";
+  border: none;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open:before {
+  content: "";
+  font-family: 'Glyphicons Halflings';
+  display: inline-block;
+  padding: 10px;
+  border-right: 1px solid #ddd;
+}
+
+.tabset-dropdown > .nav-tabs > li.active {
+  display: block;
+}
+
+.tabset-dropdown > .nav-tabs > li > a,
+.tabset-dropdown > .nav-tabs > li > a:focus,
+.tabset-dropdown > .nav-tabs > li > a:hover {
+  border: none;
+  display: inline-block;
+  border-radius: 4px;
+}
+
+.tabset-dropdown > .nav-tabs.nav-tabs-open > li {
+  display: block;
+  float: none;
+}
+
+.tabset-dropdown > .nav-tabs > li {
+  display: none;
+}
+</style>
+
+<!-- code folding -->
+
+
+
+
+</head>
+
+<body>
+
+
+<div class="container-fluid main-container">
+
+
+
+
+<div class="fluid-row" id="header">
+
+
+
+<h1 class="title toc-ignore">tracker_debug</h1>
+<h4 class="author">Jonathan Tannen</h4>
+<h4 class="date">11/14/2020</h4>
+
+</div>
+
+
+<div id="what-broke-the-turnout-tracker" class="section level2">
+<h2>What broke the Turnout Tracker?</h2>
+<p>Philadelphia’s turnout on November 3rd <a href="https://sixtysixwards.com/home/election_recap_2020/">was disappointing</a>, but it was far from the bloodbath that the <a href="sixtysixwards.com/turnout-tracker">Turnout Tracker</a> was predicting.</p>
+<p>At the end of Election Day, I was estimating 285,000 in-person votes, with a CI of (262K, 303K). The actual number was 360K. What went wrong?</p>
+<pre class="r"><code>knitr::opts_knit$set(echo = FALSE, warning = FALSE, message=FALSE)
+
+# setwd(&quot;C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/&quot;)
+library(dplyr)</code></pre>
+<pre><code>## Warning: package &#39;dplyr&#39; was built under R version 3.6.3</code></pre>
+<pre><code>## 
+## Attaching package: &#39;dplyr&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:stats&#39;:
+## 
+##     filter, lag</code></pre>
+<pre><code>## The following objects are masked from &#39;package:base&#39;:
+## 
+##     intersect, setdiff, setequal, union</code></pre>
+<pre class="r"><code>library(stargazer)</code></pre>
+<pre><code>## 
+## Please cite as:</code></pre>
+<pre><code>##  Hlavac, Marek (2018). stargazer: Well-Formatted Regression and Summary Statistics Tables.</code></pre>
+<pre><code>##  R package version 5.2.2. https://CRAN.R-project.org/package=stargazer</code></pre>
+<pre class="r"><code>source(&quot;config.R&quot;, chdir=TRUE)
+source(&quot;../../R/util.R&quot;, chdir=TRUE)</code></pre>
+<pre><code>## 
+## Attaching package: &#39;gridExtra&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
+## 
+##     combine</code></pre>
+<pre class="r"><code>source(&quot;../../R/generate_plots.R&quot;, chdir=TRUE)</code></pre>
+<pre><code>## Linking to GEOS 3.6.1, GDAL 2.2.3, PROJ 4.9.3</code></pre>
+<pre><code>## 
+## Attaching package: &#39;lubridate&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:base&#39;:
+## 
+##     date</code></pre>
+<pre><code>## Warning: package &#39;doParallel&#39; was built under R version 3.6.2</code></pre>
+<pre><code>## Loading required package: foreach</code></pre>
+<pre><code>## Loading required package: iterators</code></pre>
+<pre><code>## Loading required package: parallel</code></pre>
+<pre><code>## 
+## Attaching package: &#39;MASS&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:dplyr&#39;:
+## 
+##     select</code></pre>
+<pre><code>## 
+## Attaching package: &#39;tidyr&#39;</code></pre>
+<pre><code>## The following object is masked from &#39;package:magrittr&#39;:
+## 
+##     extract</code></pre>
+<pre><code>## 
+## Attaching package: &#39;Matrix&#39;</code></pre>
+<pre><code>## The following objects are masked from &#39;package:tidyr&#39;:
+## 
+##     expand, pack, unpack</code></pre>
+<pre><code>## This version of Shiny is designed to work with &#39;htmlwidgets&#39; &gt;= 1.5.
+##     Please upgrade via install.packages(&#39;htmlwidgets&#39;).</code></pre>
+<pre class="r"><code>source(&quot;../../R/bootstrap.R&quot;, chdir=TRUE)
+
+config &lt;- extend_config(config)
+
+params &lt;- readRDS(&quot;outputs/params.Rds&quot;)
+bs &lt;- readRDS(&quot;outputs/bootstrap.Rds&quot;)
+
+get_ward &lt;- config$get_ward_from_precinct
+
+raw_data &lt;- readRDS(&quot;outputs/raw_data.Rds&quot;) %&gt;% 
+  mutate(
+    ward=get_ward(precinct),
+    time_of_day=config$base_time + minutes(minute)
+  )
+
+current_time &lt;- max(bs@raw_result@time_df$time_of_day)
+
+turnout_df &lt;- get_ci_from_bs(bs, predict_topline, keys=&quot;time_of_day&quot;)
+current_turnout &lt;- filter_to_eod(turnout_df)
+
+ward_turnout &lt;- get_ci_from_bs(
+  bs, 
+  predict_ward_turnout, 
+  get_ward=get_ward,
+  keys=&quot;ward&quot;
+)</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)
+## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>precinct_turnout &lt;- get_ci_from_bs(
+  bs, 
+  predict_precinct_eod,
+  keys=&quot;precinct&quot;
+)
+
+ci_df &lt;- get_ci_from_bs(bs, predict_topline, keys=&quot;time_of_day&quot;, eod=FALSE)
+  
+winsorize &lt;- function(x, t = 0.95){
+  mean_x &lt;- mean(x, na.rm=TRUE)
+  x_demean &lt;- x - mean_x
+  cutoff &lt;- quantile(abs(x_demean), probs=t, na.rm=TRUE)
+  return(
+    mean_x + sign(x_demean) * pmin(abs(x_demean), cutoff)
+  )
+}
+  
+resid_data &lt;- raw_data %&gt;%
+  mutate(
+    pred = predict_turnout(
+      bs@raw_result, 
+      precinct=precinct, 
+      time_of_day=time_of_day
+    )$turnout,
+    resid = winsorize(log_obs - log(pred))
+  ) %&gt;% 
+  left_join(ci_df)</code></pre>
+<pre><code>## Joining, by = &quot;precinct&quot;</code></pre>
+<pre><code>## Joining, by = &quot;time_of_day&quot;
+## Joining, by = &quot;time_of_day&quot;</code></pre>
+<pre class="r"><code>ggplot(
+  ci_df,
+  aes(x=time_of_day, y=turnout)
+) +
+  geom_point(data=resid_data, aes(y=turnout * exp(resid))) +
+  geom_ribbon(
+    aes(ymin = p025, ymax = pmin(p975, 1.5e6)),
+    alpha = 0.2,
+    color = NA,
+    fill = strong_purple
+  ) +
+  geom_line(size = 2, color = strong_purple) +
+  scale_x_datetime(&quot;&quot;, date_labels = &quot;%I&quot;, date_breaks = &#39;1 hour&#39;) +
+  scale_y_continuous(&quot;&quot;, labels = scales::comma) +
+  geom_hline(yintercept = 360e3) + 
+  geom_text(
+    data = data.frame( 
+      turnout = 360e3,
+      time_of_day = rep(config$base_time + minutes(30), 1),
+      label = &quot;Actual Turnout = 360K&quot;
+    ),
+    aes(label=label, y=turnout),
+    vjust = 1.2,
+    hjust = 0
+  ) +
+  expand_limits(x = config$election_day + hours(config$end_hour), y=0) + 
+  ggtitle(&quot;Estimated In-Person Election Turnout&quot;) +
+  theme_sixtysix() </code></pre>
+<p><img src="tracker_diagnostics_files/figure-html/setup-1.png" width="80%" /></p>
+<p>The miss was not the same across the city.</p>
+<pre class="r"><code>divs &lt;- readRDS(&quot;data/precincts.Rds&quot;)
+wards &lt;- readRDS(&quot;data/wards.Rds&quot;)
+
+turnout_20 &lt;- readr::read_csv(&quot;../../../../election_night_2020/data/wards_1118.csv&quot;) %&gt;%
+  rename(ward=Division) %&gt;%
+  rename(total_votes=`Votes Cast`, inperson=PollingPlace)</code></pre>
+<pre><code>## Parsed with column specification:
+## cols(
+##   Division = col_character(),
+##   `Registered Voters*` = col_double(),
+##   `Votes Cast` = col_double(),
+##   `Percent Turnout**` = col_double(),
+##   PartyCode = col_logical(),
+##   CurrentDateTime = col_character(),
+##   IsReported = col_double(),
+##   PollingPlace = col_double(),
+##   MailIn = col_double()
+## )</code></pre>
+<pre class="r"><code>wards %&lt;&gt;% 
+  left_join(ward_turnout) %&gt;%
+  left_join(turnout_20)</code></pre>
+<pre><code>## Joining, by = &quot;ward&quot;</code></pre>
+<pre><code>## Joining, by = &quot;ward&quot;</code></pre>
+<pre class="r"><code>fill_scale &lt;- 1 + c(-1, 1) * with(wards, max(abs(turnout/inperson - 1)))
+  
+
+ggplot(wards, aes(fill=turnout / inperson)) +
+  geom_sf() +
+  scale_fill_gradient2(low=strong_orange, high=strong_purple, midpoint = 1) +
+  expand_limits(fill=fill_scale) +
+  theme_map_sixtysix() +
+  labs(
+    title=&quot;Tracker Predictions vs Eventual Results&quot;,
+    fill=&quot;Prediction / Truth&quot;
+  )</code></pre>
+<p><img src="tracker_diagnostics_files/figure-html/map_of_miss-1.png" width="768" /></p>
+<p>This is bad. I underpredicted the whole of the Northeast, plus North, West, and South Philly. I also ended up <em>over-predicting</em> Center City and Chestnut Hill (and way over-predicting Penn’s 27th).</p>
+<p>The patterns here map clearly to the city’s <a href="https://sixtysixwards.com/home/voting-blocs-2019/">Voting Blocs</a>, but it’s important to make clear that the model <em>already accounts</em> for historic correlations among Voting Blocs. In fact, here’s the same map from the 2019 primary.</p>
+<pre class="r"><code># bs_19 &lt;- readRDS(&quot;../phila_201911/outputs/bootstrap.Rds&quot;)
+# ward_turnout_19 &lt;- get_ci_from_bs(
+#   bs, 
+#   predict_ward_turnout, 
+#   get_ward=get_ward,
+#   keys=&quot;ward&quot;
+# )
+
+ward_turnout_19 &lt;- readr::read_csv(&quot;../phila_201905/outputs/precinct_turnout_philadelphia.csv&quot;) %&gt;%
+  mutate(ward=substr(precinct, 1, 2)) %&gt;%
+  group_by(ward) %&gt;%
+  summarise(pred_19=sum(turnout))</code></pre>
+<pre><code>## Parsed with column specification:
+## cols(
+##   precinct = col_character(),
+##   turnout = col_double(),
+##   sum_fe = col_double(),
+##   re_over_fe = col_double()
+## )</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>col_names &lt;- readr::read_csv(&quot;../../../../../data/voter_registration/col_names.csv&quot;)</code></pre>
+<pre><code>## Parsed with column specification:
+## cols(
+##   name = col_character(),
+##   type = col_character(),
+##   desc = col_character()
+## )</code></pre>
+<pre class="r"><code>fve_19 &lt;- readr::read_tsv(
+  &quot;../../../../../data/voter_registration/20190624/PHILADELPHIA FVE 20190624.txt&quot;,
+  col_names = col_names$name
+)</code></pre>
+<pre><code>## Parsed with column specification:
+## cols(
+##   .default = col_character(),
+##   `House Number` = col_double(),
+##   Zip = col_double(),
+##   `Mail Address 2` = col_logical(),
+##   `Mail Zip` = col_double(),
+##   `District 3` = col_logical(),
+##   `District 5` = col_logical(),
+##   `District 17` = col_logical(),
+##   `District 18` = col_logical(),
+##   `District 19` = col_logical(),
+##   `District 20` = col_logical(),
+##   `District 21` = col_logical(),
+##   `District 22` = col_logical(),
+##   `District 23` = col_logical(),
+##   `District 24` = col_logical(),
+##   `District 25` = col_logical(),
+##   `District 26` = col_logical(),
+##   `District 27` = col_logical(),
+##   `District 28` = col_logical(),
+##   `District 29` = col_logical(),
+##   `District 30` = col_logical()
+##   # ... with 28 more columns
+## )</code></pre>
+<pre><code>## See spec(...) for full column specifications.</code></pre>
+<pre><code>## Warning: 658337 parsing failures.
+##  row                     col               expected actual                                                                            file
+## 1944 Election 1 Party        1/0/T/F/TRUE/FALSE      UNK   &#39;../../../../../data/voter_registration/20190624/PHILADELPHIA FVE 20190624.txt&#39;
+## 2084 Mail Zip                no trailing characters  -0583 &#39;../../../../../data/voter_registration/20190624/PHILADELPHIA FVE 20190624.txt&#39;
+## 3129 Election 40 Vote Method 1/0/T/F/TRUE/FALSE      AP    &#39;../../../../../data/voter_registration/20190624/PHILADELPHIA FVE 20190624.txt&#39;
+## 3129 Election 40 Party       1/0/T/F/TRUE/FALSE      D     &#39;../../../../../data/voter_registration/20190624/PHILADELPHIA FVE 20190624.txt&#39;
+## 4295 Election 40 Vote Method 1/0/T/F/TRUE/FALSE      AP    &#39;../../../../../data/voter_registration/20190624/PHILADELPHIA FVE 20190624.txt&#39;
+## .... ....................... ...................... ...... ...............................................................................
+## See problems(...) for more details.</code></pre>
+<pre class="r"><code>true_turnout_19 &lt;- fve_19 %&gt;%
+  mutate(
+    voted_19 = `Election 8 Vote Method` == &quot;AP&quot;,
+    ward=substr(`District 2`, 3, 4)
+  ) %&gt;%
+  group_by(ward) %&gt;%
+  summarise(
+    reg_19=n(),
+    voted_19=sum(voted_19, na.rm=TRUE)
+  )</code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>turnout_df &lt;- readRDS(&quot;../../../../../data/processed_data/df_major_20200813.Rds&quot;)
+turnout_df &lt;- turnout_df %&gt;% filter(is_topline_office) %&gt;%
+  mutate(ward=substr(warddiv, 1, 2)) %&gt;%
+  group_by(ward, year, election_type) %&gt;%
+  summarise(turnout=sum(votes))</code></pre>
+<pre><code>## `summarise()` regrouping output by &#39;ward&#39;, &#39;year&#39; (override with `.groups` argument)</code></pre>
+<pre class="r"><code>ggplot(
+  wards %&gt;%
+    left_join(ward_turnout_19 %&gt;% select(ward, pred_19)) %&gt;%
+    left_join(true_turnout_19), 
+  aes(fill=pred_19 / voted_19)
+) +
+  geom_sf() +
+  scale_fill_gradient2(low=strong_orange, high=strong_purple, midpoint = 1) +
+  theme_map_sixtysix() +
+  expand_limits(fill=fill_scale) +
+  labs(
+    title=&quot;Tracker Predictions vs Eventual Results, 2019 Primary&quot;,
+    fill=&quot;Prediction / Truth&quot;
+  )</code></pre>
+<pre><code>## Joining, by = &quot;ward&quot;</code></pre>
+<pre><code>## Joining, by = &quot;ward&quot;</code></pre>
+<p><img src="tracker_diagnostics_files/figure-html/comp_19-1.png" width="768" /></p>
+<p>There’s much less of a pattern, and the model handled all of the correlations pretty well. It underpredicted Hispanic North Philly, where there was a competitive 7th District council race, but overall the true turnout was well within the CI, and we missed getting it on the noce by only 14K votes.</p>
+<p>So yes, something went wrong this year, and yes, it’s correlated with the Voting Blocs. But it’s not as simple as failing to account for correlations. Instead, Covid broke the historic patterns.</p>
+</div>
+<div id="what-the-tracker-does-and-doesnt-do." class="section level2">
+<h2>What the Tracker does and doesn’t do.</h2>
+<p>First, some background.</p>
+<p>The Turnout Tracker takes submissions from voters across the city. Participants give me (a) their division, (b) the time of day, and (c) their “voter number” in their division: how many people have voted before them, plus them. The result is I can estimate the cumulative distribution of votes for each division, and the total number of votes cast so far across the city.</p>
+<p>Doing that well requires some hefty statistical work. I use historic correlations among divisions to predict the votes in divisions without any submissions, and estimate a non-parametric time distribution (the curvy line above) on the fly. And I bootstrap the whole thing to get confidence intervals. (Math person? See the Appendix, and then the <a href="https://github.com/jtannen/turnout_tracker/methodology.html">github repo</a>, for the math.)</p>
+<p>A common concern I get about the Tracker is “what if you don’t get many submissions from a ward?” People are concerned that if I don’t get any submissions from the 66th, for example, I’ll treat that as if zero people there voted. Or maybe just assume the 66th is the same as the places where I do have submissions. But I don’t. I use the historic correlations to effectively take a weighted average among the submissions of the wards that historically have been similar. Having submissions from the ward itself will make me more <em>confident</em> in the estimate, but ward estimates should not be biased just because we don’t have submissions. As a toy example, suppose the city had two wards, which historically showed no correlations. If all of the submissions were from Ward A, then that would have no effect on the estimate for Ward B (they’re uncorrelated): the tracker would simulate Ward B as having the entire range of historic turnouts it’s ever had. The error bars would be huge. As we got submissions from Ward B, the estimate would narrow down on a portion of that range, becoming more confident. In the real Tracker, each Ward is correlated with other Wards at some value between -1 and 1.</p>
+<p>For example, in predicting the Northeast’s 66th Ward relative to the city as a whole, here is the weighting I give to submissions from each other ward:</p>
+<pre class="r"><code>D &lt;- sparseMatrix(
+  i=1:nrow(raw_data), 
+  j=raw_data$precinct_num, 
+  x=1, 
+  dims=c(nrow(raw_data),nrow(params@precinct_fe))
+)
+
+sigma_e &lt;- 0.1
+
+w &lt;- rowSums(solve(D %*% params@precinct_cov_inv %*% t(D) + Diagonal(n=nrow(D), x=sigma_e)))
+w &lt;- w / sum(w)
+
+r &lt;- (
+  raw_data$log_obs 
+  - bs@raw_result@time_df$log_fit[raw_data$minute] 
+  + max(bs@raw_result@time_df$log_fit)
+)
+
+alpha &lt;- t(r - D %*% params@precinct_fe$precinct_fe) %*% w
+alpha &lt;- alpha[1,1]
+
+weight_mat &lt;- solve(Diagonal(nrow(params@precinct_cov)) + sigma_e^2 * params@precinct_cov_inv) 
+target_div &lt;- &quot;6616&quot;
+target_ward &lt;- &quot;66&quot;
+mat_row &lt;- which(substr(params@precinct_fe$precinct, 1, 2)==target_ward)
+
+divs &lt;- divs %&gt;% 
+  left_join(
+    params@precinct_fe %&gt;% 
+      mutate(weight = colMeans(weight_mat[mat_row,])), 
+    by=c(&quot;precinct&quot;)
+  )
+
+ward_weights &lt;- divs %&gt;% 
+  filter(precinct != target_div) %&gt;%
+  as.data.frame() %&gt;%
+  group_by(ward) %&gt;%
+  summarise(weight = mean(weight)) </code></pre>
+<pre><code>## `summarise()` ungrouping output (override with `.groups` argument)</code></pre>
+<pre class="r"><code>scale_weight &lt;- function(x){
+  x / max(abs(x))
+}
+
+ggplot(
+  wards %&gt;% filter(ward!=target_ward) %&gt;% left_join(ward_weights)
+) +
+  geom_sf(aes(fill=scale_weight(weight))) +
+  geom_sf(data=wards %&gt;% filter(ward==target_ward), fill=&quot;grey&quot;) +
+  geom_text(
+    data=st_centroid(wards) %&gt;% 
+      filter(ward == target_ward) %&gt;% 
+      mutate(
+        x=st_coordinates(geometry)[1],
+        y=st_coordinates(geometry)[2]
+      ),
+    aes(label=ward, x=x, y=y)
+  ) + 
+  scale_fill_viridis_c() +
+  theme_map_sixtysix() +
+  labs(
+    title=sprintf(&quot;Weights used to predict Ward %s&quot;, target_ward),
+    fill=&quot;Weight&quot;
+  )</code></pre>
+<pre><code>## Joining, by = &quot;ward&quot;</code></pre>
+<pre><code>## Warning in st_centroid.sf(wards): st_centroid assumes attributes are constant
+## over geometries of x</code></pre>
+<pre><code>## Warning in st_centroid.sfc(st_geometry(x), of_largest_polygon =
+## of_largest_polygon): st_centroid does not give correct centroids for longitude/
+## latitude data</code></pre>
+<p><img src="tracker_diagnostics_files/figure-html/matrix_algebra-1.png" width="672" /> Notice that the 66th Ward depends mostly on other Northeast and South Philly wards, followed by the River Wards and Manayunk, then Center City West. In fact, conditional on the overall city turnout, it usually swings in the <em>opposite</em> direction of North and West Philly. (Though it’s worth pointing out that the “overall city turnout” uses all wards, so high numbers in North Philly may increase the 66th’s estimate by increasing the total estimate.)</p>
+<p>The key is that the Tracker will not be broken by disproportionate submissions, or by large swings of turnout among Philadelphia’s <a href="https://sixtysixwards.com/home/voting-blocs-2019/">Voting Blocs</a> that are consistent with historic swings. Instead, what breaks the Tracker is when an entirely new pattern emerges, or a really big one, that we haven’t seen in the data back to 2002. And on Tuesday, November 3rd, that’s what happened.</p>
+</div>
+<div id="how-i-handled-mail-in-ballots" class="section level2">
+<h2>How I handled mail-in ballots</h2>
+<p>This was the first year with no-excuse mail-in voting, and Covid meant that we would have enormous usage of it. Ahead of the election, I needed to figure out how to account for that.</p>
+<p>The patterns of requests seemed to break down along familiar lines: the progressive wards of Center City and the ring around it requested ballots at high rates, while Black wards of West and North Philly did so somewhat less, and the Trumpy wards of South Philly and the Northeast less still. The pattern was familiar, and mapped to the Voting Blocs almost perfectly.</p>
+<p>So I figured that once we subtract out the mail-in votes, the remaining in-person votes would look a lot like a typical election. Maybe what would happen is the Wealthy Progressive wards would swing towards low turnout, and everywhere else high, but those correlations would be correctly captured by the model. I decided to treat Election Day in-person turnout as any other election, ignoring the mail-in votes. Post-hoc, I added back the mail-in votes to get an accurate picture of the true topline.</p>
+<p>What I decided <em>not</em> to do is parametrize model with mail-in votes to explicitly adjust the predictions (e.g. expecting places with low mail-in requests to vote in-person at much higher rates), or allow for different-than-normal covariances. But when you just pretend in-person votes were all that there was, this election was unlike any we’ve ever seen.</p>
+<p>A jarring example is comparing the 66th Ward in the Northeast, from which I had no submissions, to the 8th Ward in Center City, from which I had a ton.</p>
+<pre class="r"><code>ggplot(
+  turnout_df %&gt;% filter(ward %in% c(&quot;08&quot;, target_ward)) %&gt;%
+    mutate(ward=ifelse(ward==target_ward, &quot;target&quot;, ward)) %&gt;%
+    pivot_wider(names_from=ward, values_from=turnout, names_prefix = &quot;t_&quot;),
+  aes(x=year, group=election_type, y=t_target / t_08)
+) + 
+  geom_point(size=4, color=strong_blue) +
+  geom_line(aes(linetype=election_type), color=strong_blue) +
+  # geom_histogram(binwidth = 0.1, boundary=0) +
+  # geom_vline(
+  #   xintercept=ward_turnout %&gt;% 
+  #       filter(ward %in% c(&quot;45&quot;, &quot;08&quot;)) %&gt;% 
+  #       select(ward, turnout_20) %&gt;% 
+  #       pivot_wider(names_from=&quot;ward&quot;, values_from=&quot;turnout_20&quot;) %&gt;%
+  #       with(`45`/`08`),
+  #   linetype=&quot;dashed&quot;
+  # ) +
+  theme_sixtysix() +
+  labs(
+    title=sprintf(&quot;Distribution of %sth Ward turnout vs 8th&quot;, target_ward),
+    subtitle=&quot;Elections from 2002 to the 2020 primary.&quot;,
+    y=sprintf(&quot;Ward %s Turnout / Ward 8 Turnout&quot;, target_ward),
+    x=NULL,
+    linetype=&quot;Election&quot;
+  )</code></pre>
+<p><img src="tracker_diagnostics_files/figure-html/comp_66_08-1.png" width="672" /> Typically, the 66th Ward casts about the same number of votes as the 8th Ward. Its high-water mark was in 2003, when it had 57% more votes than the 8th. In every year since 2016, it’s cast fewer.</p>
+<p>So the Tracker expected the 66th Ward’s turnout to be somewhere in this range. I figured the 66th would make up for some of its mail-in lag, and we’d see in-person turnout at maybe 1.5 times the 8th. In other words, we’d see an extreme but historically-plausible proportion.</p>
+<p>Here’s what happened:</p>
+<pre class="r"><code>ggplot(
+  turnout_df %&gt;% filter(ward %in% c(&quot;08&quot;, target_ward)) %&gt;%
+    mutate(ward=ifelse(ward==target_ward, &quot;target&quot;, ward)) %&gt;%
+    pivot_wider(names_from=ward, values_from=turnout, names_prefix = &quot;t_&quot;) %&gt;%
+    bind_rows(
+      turnout_20 %&gt;%
+        filter(ward %in% c(target_ward, &quot;08&quot;)) %&gt;%
+        mutate(ward=ifelse(ward==target_ward, &quot;target&quot;, ward)) %&gt;%
+        select(ward, inperson) %&gt;%
+        pivot_wider(names_from=&quot;ward&quot;, values_from=&quot;inperson&quot;, names_prefix = &quot;t_&quot;) %&gt;%
+        mutate(year = &quot;2020&quot;, election_type=&quot;general&quot;)
+    ),
+  aes(x=year, group=election_type, y=t_target / t_08)
+) + 
+  geom_line(aes(linetype=election_type), color=strong_blue) +
+  geom_point(size=4, aes(color=(year == 2020 &amp; election_type==&quot;general&quot;))) +
+  scale_color_manual(values=c(`FALSE`=strong_blue, `TRUE`=strong_red), guide=FALSE) +
+  # geom_histogram(binwidth = 0.1, boundary=0) +
+  # geom_vline(
+  #   xintercept=ward_turnout %&gt;% 
+  #       filter(ward %in% c(&quot;45&quot;, &quot;08&quot;)) %&gt;% 
+  #       select(ward, turnout_20) %&gt;% 
+  #       pivot_wider(names_from=&quot;ward&quot;, values_from=&quot;turnout_20&quot;) %&gt;%
+  #       with(`45`/`08`),
+  #   linetype=&quot;dashed&quot;
+  # ) +
+  theme_sixtysix() +
+  labs(
+    title=sprintf(&quot;Distribution of %sth Ward turnout vs 8th&quot;, target_ward),
+    subtitle=&quot;Elections from 2002 to the 2020 general (in red).&quot;,
+    y=sprintf(&quot;Ward %s Turnout / Ward 8 Turnout&quot;, target_ward),
+    x=NULL,
+    linetype=&quot;Election&quot;
+  )</code></pre>
+<p><img src="tracker_diagnostics_files/figure-html/comp_66_08_2020-1.png" width="672" /> I completely underestimated the amount of catch-up that would happen on Election Day. The 66th Ward actually had <em>2.4 times</em> the in-person votes of the 8th, a value that would seem impossible based on historic data. My assumption that in-person votes would look like maybe 2003 was wrong.</p>
+<p>Obviously this didn’t just happen in the 66th and 8th. A similar plot exists for all of the errors in the maps above.</p>
+<p>The result is that the Tracker vastly underpredicted the Northeast, expecting it to be more like Center City than it was (and overpredicted Center City and the universities).</p>
+</div>
+<div id="where-to-go-frome-here" class="section level2">
+<h2>Where to go frome here</h2>
+<p>Mail-in voting is here to stay, though hopefully Covid isn’t. What should be fixed for next elections? There are two possible strategies:</p>
+<ol style="list-style-type: decimal">
+<li><p>Parametrize the model for mail-in requests. Allow the Tracker to adjust the covariances for the mail-ins requested, and expect a positive amount of catch-up in the low-requesting wards.</p></li>
+<li><p>Don’t overcorrect. This was probably an outlier election, thanks to Covid. Plus, when I retrain the model in May, I’ll have <em>this</em> election in the training set, so its priors should sufficiently allow for this trend. Finally, in future elections without Trump on the ballot, mail-ins will probably be less partisan. All of this suggests future elections should be relatively safe from this pandemic outlier.</p></li>
+</ol>
+<p>I need to think about this, but I’ll probably choose a mix of these two strategies, and test the heck out of the new version for cases where mail-ins go berserk.</p>
+<p>Plus, maybe I’ll finally get my act together and sufficiently recruit submissions from all wards in the city.</p>
+</div>
+<div id="appendix-the-math" class="section level2">
+<h2>Appendix: The math</h2>
+<p>Suppose we have <span class="math inline">\(N_{obs}\)</span> submissions for division voter counts. The turnout tracker models turnout response <span class="math inline">\(x_i\)</span> on the log-scale, as <span class="math display">\[
+\log(x_{i}) = \alpha + \gamma_{d_i} + f(t_i) + \epsilon_i
+\]</span> where <span class="math inline">\(\alpha\)</span> is a fixed effect that scales the annual turnout, <span class="math inline">\(\gamma_d\)</span> is an <span class="math inline">\(N_{div}\)</span>-length vector of division-level random effects, with means and covariance that I’ve estimated on historic data, <span class="math inline">\(f(t)\)</span> is a time-trend that goes from <span class="math inline">\(e^{f(0)} = 0\)</span> at the start of the day to <span class="math inline">\(e^{f(t_{max})} = 1\)</span> at the end (clearly <span class="math inline">\(f(0)\)</span> is undefined, but we can get around this by only starting with the first datapoint), and <span class="math inline">\(\epsilon\)</span> is noise.</p>
+<p>The <span class="math inline">\(\gamma\)</span> vector of division random effects are modeled as <span class="math display">\[
+\gamma \sim N(\mu, \Sigma)
+\]</span> where <span class="math inline">\(\mu\)</span> and <span class="math inline">\(\Sigma\)</span> are estimated based on historic data of all Philadelphia elections since 2002.</p>
+<p>The model simultaneously estimates <span class="math inline">\(\alpha\)</span>, <span class="math inline">\(f\)</span>, and the expectation of <span class="math inline">\(\gamma\)</span> conditional on <span class="math inline">\(x\)</span>.</p>
+<p>Suppose we know <span class="math inline">\(f(t)\)</span>. Define the residual as <span class="math inline">\(r_i = log(x_i) - f(t_i)\)</span>. Then the <span class="math inline">\(r_i\)</span> are drawn from a normal <span class="math display">\[
+r_i \sim N(\alpha + \gamma_{d_i}, \sigma_\epsilon)
+\]</span> Marginalizing out <span class="math inline">\(\gamma\)</span>, the covariance of <span class="math inline">\(r_i\)</span>, <span class="math inline">\(r_j\)</span>, <span class="math inline">\(i\neq j\)</span>, is <span class="math inline">\(\Sigma_{d_i, d_j}\)</span>, so the vector of <span class="math inline">\(r\)</span> is drawn from a big multivariate normal, <span class="math display">\[
+r \sim N(\alpha + D\mu, D \Sigma D&#39; + Diag(\sigma_\epsilon))
+\]</span> where <span class="math inline">\(D\)</span> is a <span class="math inline">\(N_{obs} \times N_{div}\)</span> matrix with <span class="math inline">\(D_{ij} = 1\)</span> if observation <span class="math inline">\(i\)</span> belongs to division <span class="math inline">\(j\)</span>, 0 otherwise.</p>
+<p>The log likelihood of <span class="math inline">\(r\)</span> is <span class="math display">\[
+L(r; \alpha) = -\frac{1}{2} (r - \alpha - D \mu)&#39; (D \Sigma D&#39; + Diag(\sigma_\epsilon))^{-1} (r - \alpha - D \mu) + C
+\]</span> and is maximized for an alpha satisfying <span class="math display">\[
+0 = (r - \alpha_{MLE} - D\mu)&#39;(D \Sigma D&#39; + Diag(\sigma_\epsilon))^{-1}1_{N_{obs}} \\
+\alpha_{MLE} = \frac{(r - D\mu)&#39;(D \Sigma D&#39; + Diag(\sigma_\epsilon))^{-1}1_{N_{obs}}}{1_{N_{obs}}&#39; (D \Sigma D&#39; + Diag(\sigma_\epsilon))^{-1}1_{N_{obs}}}
+\]</span> To keep ourselves sane, we can write this as <span class="math display">\[
+\alpha_{MLE} = (r - D\mu)&#39; w
+\]</span> where <span class="math inline">\(w\)</span> is the <span class="math inline">\(N_obs\)</span>-length weight-vector defined above. The key to the above formula is that observations from covarying divisions are discounted, so for example if we see two observations from divisions we know vote the same, they each get only half the weight.</p>
+<p>Now consider <span class="math inline">\(\gamma\)</span>. Returning to the non-marginalized distribution, and plugging in <span class="math inline">\(\alpha_{MLE}\)</span>, the log-likelihood of <span class="math inline">\(r\)</span> is <span class="math display">\[
+L(r; \gamma) = -\frac{1}{2 \sigma_\epsilon^2} (r - \alpha_{MLE} - D\gamma)&#39;(r - \alpha_{MLE} - D\gamma) - \frac{1}{2}(\gamma - \mu)&#39;\Sigma^{-1}(\gamma - \mu) + C
+\]</span> Optimizing for <span class="math inline">\(\gamma_{MLE}\)</span> gives <span class="math display">\[
+0 = \frac{1}{\sigma_\epsilon^2} D&#39;(r - \alpha_{MLE} - D\gamma_{MLE}) - \Sigma^{-1}(\gamma_{MLE} - \mu) \\
+0 = \frac{1}{\sigma_\epsilon^2} D&#39;(r - \alpha_{MLE} - D(\gamma_{MLE}- \mu + \mu)) - \Sigma^{-1}(\gamma_{MLE} - \mu) \\
+\left(\frac{D&#39;D}{\sigma_\epsilon^2} + \Sigma^{-1}\right)(\gamma_{MLE} - \mu) = \frac{D&#39;(r - \alpha_{MLE} - D\mu)}{\sigma_\epsilon^2} \\
+\gamma_{MLE} - \mu = \left(\frac{D&#39;D}{\sigma_\epsilon^2} + \Sigma^{-1}\right)^{-1} \frac{D&#39;(r - \alpha_{MLE} - D\mu)}{\sigma_\epsilon^2} 
+\]</span> Note that <span class="math inline">\(D&#39;D\)</span> is just a diagonal matrix where the diagonal is the number of observations belonging to that division.</p>
+<p>This is just a shrunk, weighted average of the deviations <span class="math inline">\(r\)</span> from the means <span class="math inline">\(\alpha + D\mu\)</span>. Remember that <span class="math inline">\(D\)</span> just maps observations to divisions, and <span class="math inline">\(D&#39;D\)</span> is just a diagonal with the number of observations to each division. So suppose we saw one observation from each division. The relative contributions to the random effects would be given by <span class="math inline">\((I + \sigma_\epsilon^2 \Sigma^{-1})^{-1}\)</span> times each observation’s deviance from its mean. (This is what I map above.)</p>
+</div>
+
+
+
+
+</div>
+
+<script>
+
+// add bootstrap table styles to pandoc tables
+function bootstrapStylePandocTables() {
+  $('tr.header').parent('thead').parent('table').addClass('table table-condensed');
+}
+$(document).ready(function () {
+  bootstrapStylePandocTables();
+});
+
+
+</script>
+
+<!-- tabsets -->
+
+<script>
+$(document).ready(function () {
+  window.buildTabsets("TOC");
+});
+
+$(document).ready(function () {
+  $('.tabset-dropdown > .nav-tabs > li').click(function () {
+    $(this).parent().toggleClass('nav-tabs-open')
+  });
+});
+</script>
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

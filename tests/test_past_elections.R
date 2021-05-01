@@ -4,6 +4,7 @@ library(readr)
 
 test_elections <- tribble(
   ~folder, ~turnout,
+  "phila_202011", 360e3,
   "phila_201911", 306e3,
   "phila_201905", 243e3,
   "phila_201811", 553e3,
@@ -14,13 +15,13 @@ test_elections <- tribble(
 TRACKER_DIR <- "C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/"
 olddir <- setwd(TRACKER_DIR)
 
-source("load_data.R", chdir=TRUE)
-source("fit_submissions.R", chdir=TRUE)
-source("bootstrap.R", chdir=TRUE)
-source("precalc_params.R", chdir=TRUE)
+source("R/load_data.R", chdir=TRUE)
+source("R/fit_submissions.R", chdir=TRUE)
+source("R/bootstrap.R", chdir=TRUE)
+source("R/precalc_params.R", chdir=TRUE)
 
 config_dir <- function(election){
-  sprintf("%s/elections/%s", TRACKER_DIR, election)
+  sprintf("%s/election_configs/%s", TRACKER_DIR, election)
 }
 
 set.seed(215)
@@ -61,8 +62,9 @@ for(i in 1:nrow(test_elections)){
     params=params,
     election_config=config,
     n_boot=40,
-    use_inverse=FALSE,
-    verbose=TRUE
+    # use_inverse=FALSE,
+    verbose=TRUE,
+    method="gam"
   )
  
   ci <- get_ci_from_bs(

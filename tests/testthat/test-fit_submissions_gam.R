@@ -1,0 +1,93 @@
+library(testthat)
+library(dplyr)
+
+
+TRACKER_DIR <- "C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/"
+olddir <- setwd(TRACKER_DIR)
+
+source("R/load_data.R", chdir=TRUE)
+source("R/fit_submissions.R", chdir=TRUE)
+source("R/bootstrap.R", chdir=TRUE)
+source("R/precalc_params.R", chdir=TRUE)
+
+setwd(olddir)
+
+test_elections <- tribble(
+  ~folder, ~turnout,
+  "phila_202011", 360e3,
+  "phila_201911", 306e3,
+  "phila_201905", 243e3,
+  "phila_201811", 553e3,
+  "phila_201805", 170e3
+)
+
+config_dir <- function(election){
+  sprintf("%s/election_configs/%s", TRACKER_DIR, election)
+}
+
+set.seed(215)
+
+test_election <- function(election, true_turnout){
+  old_dir <- setwd(config_dir(election))
+  on.exit(setwd(old_dir))  
+  source("config.R")
+  
+  print("CALCULATING PARAMS")
+  
+  turnout_df <- readr::read_csv(config$turnout_df_path, col_types = "ccd")
+  
+  precincts <- readRDS("data/precincts.Rds")
+  wards <- readRDS("data/wards.Rds")
+  
+  params <- calc_params(turnout_df=turnout_df, n_svd=3)
+  # diagnostics(params, precincts, config)
+  
+  print("FITTING DATA")
+  
+  google_rds <- "outputs/google_download.Rds"
+  data_load <- load_data(TRUE, config, params, google_rds)
+  raw_data <- data_load$raw_data
+  bs <- fit_and_bootstrap(
+    raw_data=raw_data,
+    params=params,
+    election_config=config,
+    n_boot=40,
+    # use_inverse=FALSE,
+    verbose=TRUE,
+    method="gam"
+  )
+  
+  ci <- get_ci_from_bs(
+    bs, 
+    predict_topline,
+    keys=c("time_of_day"), 
+    eod=TRUE
+  )
+  
+  print("Boostrapped CIs") 
+  print(round(ci[c("p025", "p975")]))
+  print(sprintf("True Turnout: %s", true_turnout))
+  
+  expect_gt(ci$p975, true_turnout) 
+  expect_lt(ci$p025, true_turnout) 
+  
+  data.frame(
+    election=election, 
+    true_turnout=true_turnout, 
+    ci_median=ci$turnout,
+    ci_low=ci$p025, 
+    ci_high=ci$p975
+  )
+}
+
+results <- data.frame()
+for(i in 1:nrow(test_elections)){
+  election <- test_elections$folder[i]
+  true_turnout <- test_elections$turnout[i]
+  print(election)
+  res <- test_election(election, true_turnout)
+  results <- bind_rows(results, res)
+}
+
+print(results)
+setwd(olddir)

@@ -1,4 +1,5 @@
-generate_twitter_token.R
+R/generate_twitter_token.R
+elections/*/outputs/*
 elections/*/outputs/backup/*
 */bootstrap.Rds
 */bootstrap_*.Rds
@@ -6,3 +7,5 @@ elections/*/outputs/params.Rda
 elections/*/outputs/params.Rds
 elections/*/outputs/phila_params.Rda
 git_list_large_files.sh
+.Rproj.user
+wordpress_config.json

@@ -1,0 +1,221 @@
+---
+output: html_document
+---
+
+<style>
+
+table, td, th {
+  border: none;
+  padding-left: 1em;
+  padding-right: 1em;
+  min-width: 50%;
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+</style>
+
+<!-- [![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/icon.png){width=15%} -->
+<!-- ![](`r if(dir.exists(add_election_path("images"))) add_election_path("/") else ""`images/logo.png){width=50%}](https://sixtysixwards.com) -->
+
+```{r setup, include=FALSE, out.width='80%'}
+# setwd("C:/Users/Jonathan Tannen/Dropbox/sixty_six/posts/turnout_tracker/tracker_v0/")
+
+library(dplyr)
+library(stargazer)
+library(readr)
+
+source(add_election_path("config.R"), chdir=TRUE)
+source("R/util.R", chdir=TRUE)
+source("R/generate_plots.R", chdir=TRUE)
+source("R/bootstrap.R", chdir=TRUE)
+
+config <- extend_config(config)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message=FALSE)
+
+params <- readRDS(output_file("params.Rds"))
+bs <- readRDS(output_file("bootstrap.Rds"))
+
+get_ward <- config$get_ward_from_precinct
+
+raw_data <- readRDS(output_file("raw_data.Rds")) %>% 
+  mutate(
+    ward=get_ward(precinct),
+    time_of_day=config$base_time + minutes(minute)
+  )
+
+current_time <- max(bs@raw_result@time_df$time_of_day)
+
+turnout_df <- get_ci_from_bs(bs, predict_topline, keys="time_of_day")
+current_turnout <- filter_to_eod(turnout_df)
+
+ward_turnout <- get_ci_from_bs(
+  bs, 
+  predict_ward_turnout, 
+  get_ward=get_ward,
+  keys="ward"
+)
+
+precinct_turnout <- get_ci_from_bs(
+  bs, 
+  predict_precinct_eod,
+  keys="precinct"
+)
+
+write.csv(
+  precinct_turnout, 
+  file=output_file(sprintf("precinct_turnout_%s.csv", config$city_filename)), 
+  row.names=FALSE
+)
+
+wards <- readRDS(add_election_path("data/wards.Rds"))
+wards <- wards %>% left_join(ward_turnout)
+
+## for text reference
+attach(config)
+
+mail_in <- readRDS(output_file("mail_in.Rds"))
+mail_count <- get_mail_count(save_dir=OUTPUT_DIR)
+
+save_plot <- function(p, stem){
+  file <- sprintf(
+    output_file("%s_%s.png"),
+    stem,
+    format(Sys.time(), "%H_%M_%S")
+  )
+  ggsave(p, file=file)
+}
+```
+# Live `r substr(election_ds, 1, 4)` Election Turnout Tracker
+
+Welcome to the [`r site_name`](`r site_link`) Turnout Tracker! 
+Voters across `r city` are sharing their turnout to support citizen science. 
+
+> First, vote! Then, share your `r precinct_name` and Voter Number at bit.ly/sixtysixturnout .
+
+## Live Results
+
+```{r turnout, echo=FALSE, out.width='100%'}
+tp <- turnout_plot(bs, raw_data, config, mail_in=0)
+save_plot(tp, "turnout")
+tp
+```
+
+As of `r pretty_time(current_time)`, `r scales::comma(nrow(raw_data))` voters in `r length(unique(raw_data$ward))` wards have [shared their voter number](`r submission_bitly`). I estimate that <b>`r scales::comma(round(current_turnout$turnout))`</b> people have voted in person across the city (95% Confidence Interval: `r scales::comma(round(current_turnout$p025))` - `r scales::comma(round(current_turnout$p975))`). In addition, more than <b>`r scales::comma(351e3)`</b> mail-in ballots have already been returned*, and `r scales::comma(sum(mail_in$ballots) - 351e3)` are still outstanding.
+
+NOTE: The above mail counts are received from the Commissioners' Office. Some mail-ins that have already arrived are probably not included in this projection. In addition, ballots postmarked today that haven't arrived yet are not included.
+
+## Maps
+I use historic correlations among `r precinct_name`s' turnout to estimate turnout in the `r precinct_name`s with no data yet. I simultaneously estimate (1) the overall city-wide turnout, (2) `r precinct_name`s' over-/under-performance, and (3) the city-wide time pattern of voting. See the [Methodology](https://htmlpreview.github.io/?https://github.com/jtannen/turnout_tracker/blob/master/methodology.html).
+
+### Total Turnout (In-Person + Mail-In)
+```{r turnout_total_map, echo=FALSE, out.width='100%', fig.height=6, fig.align="center"}
+# turnout_map <- gg_wards_predicted(wards, current_time, config)
+turnout_map <- leaflet_wards_total(wards, raw_data, mail_in, config, current_time)
+turnout_map
+```
+
+### Total Turnout (In-Person + Mail-In) vs 2016
+```{r turnout_total_change, echo=FALSE, out.width='100%', fig.height=6, fig.align="center"}
+# turnout_map <- gg_wards_predicted(wards, current_time, config)
+if(sum(mail_in$ballots) > 0){
+  change_map <- leaflet_change(wards, raw_data, mail_in, config, current_time)
+} else {
+  change_map <- ""
+}
+change_map
+```
+
+
+### In-Person Turnout
+```{r turnout_map, echo=FALSE, out.width='100%', fig.height=6, fig.align="center"}
+# turnout_map <- gg_wards_predicted(wards, current_time, config)
+inperson_map <- leaflet_wards_predicted(wards, raw_data, mail_in, config, current_time)
+inperson_map
+```
+
+### Mail-In Requests
+```{r req_map, echo=FALSE, out.width='100%', fig.height=6, fig.align="center"}
+# turnout_map <- gg_wards_predicted(wards, current_time, config)
+if(sum(mail_in$ballots) > 0){
+  req_map <- leaflet_mail_in_reqs(wards, raw_data, mail_in, config, current_time)
+} else {
+  req_map <- ""
+}
+req_map
+```
+
+### Mail-In Ballots Returned
+```{r ret_map, echo=FALSE, out.width='100%', fig.height=6, fig.align="center"}
+# # turnout_map <- gg_wards_predicted(wards, current_time, config)
+ret_map <- leaflet_mail_in_returned(wards, raw_data, mail_in, config, current_time)
+ret_map
+```
+
+### Raw Responses (for debugging)
+```{r raw_plot, echo=FALSE, out.width='100%', fig.height=6, fig.align="center"}
+turnout_17 <- read.csv(add_election_path(config$turnout_df_path)) %>%
+  filter(election=="2017 primary") %>%
+  mutate(precinct = sprintf("%04i", precinct))
+
+generate_raw_plot(raw_data, turnout_17, 2017)
+```
+
+### Submissions
+```{r ward_table, echo=FALSE, out.width='100%', fig.height=6, fig.align="center"}
+leaflet_submissions(
+  wards=wards, 
+  raw_data=raw_data, 
+  mail_in=mail_in,
+  config=config, 
+  current_time=current_time
+)
+```
+
+## Data Tables
+For those of you who like tables with numbers.
+```{r map_labelled, echo=FALSE, out.width='100%'}
+gg_wards_labelled(wards)
+```
+
+```{r table, results='asis'}
+stargazer(
+  ward_turnout %>% 
+    mutate(
+      time_of_day=pretty_time(current_time)
+    ) %>%
+    select(ward, time_of_day, turnout, turnout_p025, turnout_p975) %>%
+    mutate_at(
+      vars(turnout, turnout_p025, turnout_p975),
+      funs(round)
+    ),
+  type = "html",
+  title = "Estimated Turnout by Ward",
+  summary = FALSE,
+  rownames = FALSE
+)
+```
+
+## Raw Submissions
+
+```{r raw_data, results='asis'}
+stargazer(
+  raw_data %>% 
+    select(time_of_day, precinct, obs) %>%
+    mutate(time_of_day = pretty_time(time_of_day)) %>%
+    rename(
+      `Time of Vote` = time_of_day, 
+      `Precinct`=precinct, 
+      `Voter Number` = obs
+    ), 
+  type = "html",
+  title = "Submitted Data", 
+  summary = FALSE,
+  rownames = FALSE
+)
+```
+
+**Download the csvs**: - [Raw Submissions](`r "https://jtannen.github.io/raw_data.csv"`) - [Division Predictions](`r sprintf("https://jtannen.github.io/precinct_turnout_%s.csv", config$city_filename)`)
